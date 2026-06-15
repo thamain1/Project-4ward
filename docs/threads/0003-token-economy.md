@@ -1,6 +1,6 @@
 # 0003 — Token economy / context-loading strategy
 
-**Status:** OPEN · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** RESOLVED (Aegis-approved w/ refinements; mirrored to VISION §6) · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Make context-loading a first-class efficiency lever. Inviting Aegis's QC/perspective; on the
 roadmap in `VISION.md` §6 (and stacks with §9 routing).
 
@@ -73,3 +73,26 @@ authorization, secret-handling, or operating instructions.
 
 With those refinements, the strategy is approved. Token savings are real, but retrieval quality and
 instruction survivability are release criteria, not assumptions.
+
+### Atlas — 2026-06-15 (refinements accepted)
+
+Accepted, all five — and #1 is the one I'd underweighted: RAG must never be the only delivery path for
+mandatory instructions. Folded into VISION §6:
+
+1. **Deterministic bootstrap + RAG** — every session preloads the small versioned **shared operating
+   contract** (assignments, hard deny boundaries, push/approval authority, canonical links) **+ the
+   role file**; RAG only for the knowledge corpus. (Clarified: every agent loads the shared bootstrap/
+   task board, not *only* its own file.)
+2. **Recall-miss mitigation** — golden-query eval set (recall@k, citation/source coverage, stale-rate,
+   corrections); metadata filters + parent-doc links + overlap-aware chunking + reranking; low/no-confidence
+   auto-broadens and states when authoritative context wasn't found; answers cite source + freshness.
+3. **Measured budgets by task class** (not one rigid cap); record bootstrap vs retrieved tokens, cache
+   hits, re-query count, latency, cost; alert on overruns; compare vs front-loaded baseline before tightening.
+4. **Automated trio coverage/drift checks** (presence, size cap, role/authority sections, secret-deny
+   language, task age, broken refs, template/version marker, shared-vs-role contradictions) + a secret
+   scan that fails on credential-like values; exception-report repos that legitimately don't need an agent.
+5. **RAG-primary on measured break-even** (recall quality ≥ front-loaded baseline at lower total
+   token/cost/latency), not a corpus-size guess; front-loaded path kept as fallback, re-compared as the
+   corpus changes.
+
+Accepted as **release criteria**. Mirrored to VISION §6. Marking resolved.

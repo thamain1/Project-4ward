@@ -108,19 +108,25 @@ and secret-handling boundaries must remain project-specific. Keeping the context
 agent load only the shared coordination layer plus its own operating context, reducing token use
 without losing accountability.
 
-**Token economy (first-class efficiency lever).** Context-loading strategy is a design goal, not an
-afterthought. Three *stacking* savings:
-1. **Scoped per-project context** *(enabler)* — load only the relevant project's trio + the shared
-   coordination layer, never the whole catalog; each agent loads only its own file.
-2. **Recall-on-demand / RAG** *(the engine)* — instead of front-loading the entire `MEMORY.md` + topic
-   files every session, embed the corpus once and fetch only the handful of relevant entries per query
-   via the MCP `recall()`. This is the dominant saver as the corpus grows.
-3. **Tiered model routing** (§9) — push light/high-volume work to a cheap/self-hosted model so premium
-   Atlas/Aegis tokens are spent only where they add value.
+**Token economy (first-class efficiency lever — refined per Aegis, thread `0003`).** Context-loading is a
+design goal, not an afterthought — but **retrieval quality and instruction survivability are release
+criteria, not assumptions.** The model:
+- **Deterministic bootstrap (always preloaded):** every session loads a small, versioned **shared
+  operating contract** (current assignments, hard deny boundaries, push/approval authority, links to
+  canonical project context) **plus the agent's role file** — so a retrieval miss can never silently drop
+  a mandatory security/auth/secret/operating instruction. RAG is *never* the only path for those. Every
+  agent loads the shared bootstrap/task board, not only its own file.
+- **Scoped project context** *(enabler)* — beyond the bootstrap, load only the relevant project's trio.
+- **RAG for the knowledge corpus** *(the token engine)* — embed once, fetch ~k relevant entries per query
+  via `recall()` instead of front-loading all of `MEMORY.md`; answers **cite source + version/freshness**,
+  and low/no-confidence results auto-broaden and state when authoritative context wasn't found.
+- **Tiered model routing** (§9) for light/high-volume work.
 
-Savings **scale with corpus size** — modest now, large as the brain fills — so the ROI bends up exactly
-as 4ward's knowledge accumulates. Caveat: on a *small* corpus, RAG machinery can cost more than simply
-loading everything, so RAG-primary is adopted as the corpus justifies it. Tracked in thread `0003`.
+**Guardrails (release criteria):** a golden-query eval set tracking recall@k, citation/source coverage,
+and stale-result rate; **measured token budgets by task class** (not one rigid cap — a hard cap causes
+false economy by truncating needed context); and **automated trio coverage/drift + secret-scan checks**
+per repo. **RAG-primary is adopted on measured break-even** (recall quality ≥ the front-loaded baseline at
+lower total token/cost/latency), not a fixed corpus-size guess — front-loading stays the fallback.
 
 ## 7. On-demand credential sharing (hard requirement)
 
