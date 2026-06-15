@@ -3,6 +3,13 @@
 -- The caller (MCP server, data plane) supplies the query embedding (768-d, gemini-embedding-001 with
 -- taskType RETRIEVAL_QUERY); this function does the cosine search across entry-level + chunk-level
 -- vectors and returns top-k with provenance + freshness (best vector per entry, deduped).
+--
+-- Cosine similarity uses pgvector's `<=>` distance operator via `OPERATOR(public.<=>)` (similarity =
+-- 1 - distance). Under the empty search_path this explicit operator form is required (operator names
+-- are not resolved by dotted schema qualification). Verified on the live DB (qdugyduthemcrmtvgqek): the
+-- `vector` extension — and its `<=>` operator for (vector, vector) — live in `public`, as do all
+-- referenced tables/types, so every `public.*` reference resolves. (Replaces an earlier
+-- `public.cosine_distance(...)` call per Aegis QC; the operator is canonical and index-aware.)
 
 create or replace function public.recall_memory(query_embedding public.vector(768), match_count int default 8)
 returns table (
@@ -12,12 +19,12 @@ returns table (
 language sql stable security definer set search_path = '' as $$
   with hits as (
     select e.name, e.title, e.kind, e.source_path, e.updated_at,
-           1 - public.cosine_distance(e.embedding, query_embedding) as similarity, 'entry'::text as matched_via
+           1 - (e.embedding OPERATOR(public.<=>) query_embedding) as similarity, 'entry'::text as matched_via
     from public.memory_entries e
     where e.embedding is not null
     union all
     select e.name, e.title, e.kind, e.source_path, e.updated_at,
-           1 - public.cosine_distance(c.embedding, query_embedding) as similarity, 'chunk'::text as matched_via
+           1 - (c.embedding OPERATOR(public.<=>) query_embedding) as similarity, 'chunk'::text as matched_via
     from public.memory_chunks c
     join public.memory_entries e on e.id = c.memory_entry_id
   ),
