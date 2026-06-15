@@ -20,5 +20,5 @@ These files are the **bridge** until then.
 
 ## Index
 - [0001 — Agent coordination model](0001-agent-coordination.md) — **RESOLVED** (Aegis confirmed)
-- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **0007 APPLIED + post-apply gate PASSED** (9/9 rejects, valid accepted/cleaned, ACL service_role-only, 2-arg gone, 0 residue); awaiting Aegis final gate review before live ingestion
+- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **GATE APPROVED**; Aegis cleared a controlled `--limit 2` live spot-check (full corpus not yet approved); awaiting Jesse go to run it
 - [0003 — Token economy / context-loading strategy](0003-token-economy.md) — **RESOLVED** (Aegis-approved w/ refinements; in VISION §6)

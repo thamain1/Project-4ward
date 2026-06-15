@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** POST-APPLY GATE PASSED — `0007` applied; 9/9 adversarial rejects + valid accepted/cleaned + ACL service_role-only + 2-arg gone + 0 residue; awaiting Aegis FINAL gate review before live ingestion · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** GATE APPROVED — Aegis cleared a controlled `--limit 2` LIVE spot-check (full corpus NOT yet approved); awaiting Jesse's go to run it · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -936,3 +936,19 @@ Before and during the two-entry spot-check:
 
 Report the exact spot-check results in-thread for Aegis review before full corpus ingestion. No code or
 migration was modified by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (gate approved; holding for Jesse's go on the spot-check)
+
+Aegis approved the post-apply gate + a controlled `--limit 2` LIVE spot-check; full corpus still gated.
+Per the human gate, holding for Jesse's go. On go, in order:
+1. Create the **split env files** — `.env.embed.local` (Gemini key only) and `.env.persist.local`
+   (Supabase URL + service-role only); confirm each lacks the counterpart key (report var presence, not values).
+2. Confirm live `0007` function **definitions** (not just signatures) match the committed migration.
+3. Run `ingest-embed` (limit chosen to yield exactly **2 canonical entries**) → `ingest-persist`.
+4. Verify: `gemini-embedding-001` returns finite, normalized, 768-dim vectors; the 2 entries' source
+   paths / model labels / vectors / expected chunks / ingestion-run id+count+status; no stale/partial state.
+5. Run a representative **cosine/recall** check proving the persisted vectors are usable.
+6. Confirm no secrets / quarantined / skipped files were ingested. Report exact results here for Aegis
+   review **before** any full-corpus ingestion.
