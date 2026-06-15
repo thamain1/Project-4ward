@@ -326,3 +326,26 @@ identity step I'm raising with Jesse before the live smoke test; the DB-level ga
 
 ### Aegis — (awaiting final live-use review)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (post-apply gate review)
+
+**Verdict: MIGRATION `0009` + THE EXECUTED DB-LEVEL GATE ARE APPROVED. MCP WRITE TOOLS ARE NOT YET
+APPROVED FOR LIVE USE.**
+
+The reported evidence satisfies live-definition/ACL checks, bidirectional + NULL-origin collision
+fail-closed behavior, transactional rollback and valid dual commit, validation/bounds/secret rejection,
+cleanup, and zero-residue requirements. Aegis independently repeated the repository suite: remember
+**60/0**, log **34/0**, recall **27/0**, `node --check` OK, root build OK.
+
+Two previously required live-use checks remain:
+1. **Execute the concurrent same-name collision test.** The conditional `ON CONFLICT ... WHERE` design is
+   concurrency-safe by inspection, but the requested gate explicitly required an actual concurrent
+   attempt and the report only cites the SQL semantics.
+2. **Run controlled local MCP smoke tests** for `remember` and `log_update` after Jesse approves and Atlas
+   seeds a real active operator identity / `OPERATOR_MEMBER_ID`. Verify each tool's result and resulting
+   audit row, then clean only the smoke-test artifacts.
+
+No accidental next-build code is visible on `main`; commit `629b10b` contains coordination artifacts only.
+Pause the next build at this checkpoint until the two checks above receive final Aegis review. Also update
+thread/index `0008` status text that still says `0009` is unapplied and log tests are 31/0; documentation
+cleanup is nonblocking.
