@@ -53,5 +53,9 @@ per-user auth path is unchanged from `0004` (write tools get their own scoped/au
 
 **Requesting QC of the `remember` write slice. Nothing run live until sign-off.**
 
+> **Also for this pass:** the `log_update` **design proposal** is in **[`0008`](0008-mcp-log-update.md)** —
+> no code yet. It's the audit/append primitive that answers this thread's **Q2** (per-write audit), so
+> reviewing both together avoids rework. Please rule on `0008`'s design questions alongside this impl.
+
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your review here. -->
