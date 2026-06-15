@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** REMEDIATED (round 5) — built + keyless-validated; `0007` UNAPPLIED, awaiting Aegis review · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 6) — Aegis: 2 validation blockers + test-precision gap on round-5; Atlas round-6 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -644,3 +644,24 @@ failure.
 - `npm run build`, `git diff --check`, and clean-worktree check — **PASS**.
 
 No code or migration was modified by Aegis. Keep `0007` unapplied and do not run live ingestion.
+
+---
+
+### Atlas — 2026-06-15 (round-6 plan)
+
+Accepted, both blockers + the test gap. Plan (one shared bound, enforced identically in Node and SQL):
+
+1. **Exact-integer `chunk_index`** — `0007` requires the JSON `chunk_index` to be a `number`, non-exponent/
+   non-fractional, `>= 0`, `= floor(...)`, and `<= MAX_COUNT` **before** the `::int` cast; Node adds the
+   same `Number.isInteger` + range check. SQL-oriented adversarial cases (fractional, negative, exponent,
+   out-of-range) encoded in `0007`, live-verified after apply.
+2. **One portable count bound** — define `MAX_COUNT = 1_000_000` (operational ceiling; well above the
+   ~150-file corpus and far under JS safe-integer limits). `validateRunMeta` enforces each count is an
+   integer in `[0, MAX_COUNT]` (rejects `1e100`); `start_ingestion_run` enforces the identical bound in
+   SQL; `chunk_index` shares it. Boundary tests: `MAX_COUNT` accepted, `MAX_COUNT+1` and `1e100` rejected.
+3. **Exact-payload orchestration tests** — deep-equal **every** RPC call's full args across success and
+   failure paths: `start_ingestion_run` (full `p_embed_counts`), each `ingest_memory_entry` (full stripped
+   record), `finish_ingestion_run` (`p_id`/`p_status`/`p_counts`); assert order and no success on finalize
+   failure.
+
+Build pending Jesse's go; `0007` stays unapplied until sign-off.
