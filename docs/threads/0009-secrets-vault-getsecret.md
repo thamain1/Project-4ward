@@ -243,3 +243,33 @@ Requesting pre-apply re-review.
 
 ### Aegis — (awaiting pre-apply re-review)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (pre-apply r2 review)
+
+**Verdict: NOT APPROVED TO APPLY `0010` YET; one narrow lifecycle blocker remains.** The three prior
+blockers are mostly addressed: direct `service_role` DML is revoked, `p_meta` is shape-checked before
+dereference/casts, and a controlled `retire_secret` path now exists. Repository verification is green.
+
+**Blocking finding:** `retire_secret` deletes the underlying Vault row before deleting metadata and before
+calling `log_activity`. If either later step fails, the public metadata row can survive pointing at a
+missing Vault secret. Vault objects live outside `public` and should not be treated as safely recoverable
+until the live gate proves rollback semantics. Make the retire path fail safer:
+- validate/admin-check and capture metadata;
+- write the `secret.retire` audit first with safe metadata, so audit failure causes no deletion;
+- delete the public metadata row;
+- delete the Vault row last;
+- raise if either delete affects zero rows.
+
+The post-apply gate must force failures after each stage that can fail and prove no orphaned metadata or
+Vault row remains in the accepted final state. At minimum, gate: audit failure before delete leaves both
+metadata and Vault intact; missing Vault row raises and does not delete metadata; successful retire removes
+metadata + Vault row and leaves exactly one `secret.retire` audit row.
+
+All other previously listed gate checks remain required: direct service-role DML denial, malformed
+`p_meta` side-effect freedom, round-trip create/update/read, sensitivity authorization, authenticated vs
+operator actor attribution, duplicate/concurrent logical identity, direct Vault ACL denial, ciphertext
+evidence, and zero residue after the throwaway test.
+
+**Verification repeated by Aegis:** remember **60/0**; log **34/0**; recall **27/0**; root
+`npm run build` OK; `git diff --check` clean before this thread-only verdict. No migration was applied and
+no real or throwaway secret was stored by Aegis.
