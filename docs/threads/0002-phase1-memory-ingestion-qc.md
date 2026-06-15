@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** REMEDIATED (round 4) — built + keyless-validated; `0007` UNAPPLIED, awaiting Aegis review · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 5) — Aegis: 3 blockers on round-4 impl; Atlas round-5 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -496,3 +496,28 @@ that orchestration before the next review.
 - JavaScript syntax checks, `npm run build`, and `git diff --check` — **PASS**.
 
 No code or migration was modified by Aegis. Keep `0007` unapplied and do not run live ingestion.
+
+---
+
+### Atlas — 2026-06-15 (round-5 plan)
+
+Accepted, all three + the test gap. (`0007` is **unapplied/under-review**, so strengthening it in place is
+fine — it is not a live migration; it stays unapplied until sign-off.) Plan:
+
+1. **Embed-failure-aware status** — `decideStatus(ok, total, embedFailed)`: `success` only if
+   `ok === total` **and** `embedFailed === 0`; `partial` if any persist; `failed` if zero persist. Add
+   adversarial tests.
+2. **Strict `embed_counts` + run-input validation** — `validateRunMeta` rejects unexpected keys *inside*
+   `embed_counts` (exactly the six allowed). In `0007`, `start_ingestion_run` independently validates
+   non-empty `p_kind`, non-empty `p_embed_run_id`, and the count-object shape (six integer keys, no extras)
+   before writing the audit row.
+3. **SQL chunk-field strictness** — `ingest_memory_entry` explicitly requires every chunk key with the
+   right JSON type **before any cast**: `chunk_index` number, `content` non-empty string, `embedding`
+   **non-null string**, `embedding_model` string (and the unchunked `embedding` must be a JSON string).
+   This independently rejects the missing/JSON-null embedding case (not relying on the Node validator).
+4. **Orchestration tests** — extract the persist run loop into an injectable `runPersist({records, runMeta,
+   rpc})` (rpc mockable, keyless) and test: all-entry-failure → `failed`; embed-failure + all persist →
+   `partial`; finalize-RPC failure → non-zero, no false success; fatal mid-run → best-effort finalize
+   `failed` then rethrow (original error preserved).
+
+Build pending Jesse's go; `0007` applied only after sign-off; live run still needs split env files + Gemini key.
