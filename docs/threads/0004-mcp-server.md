@@ -343,3 +343,41 @@ enable multi-user access, or add write/secret tools under this approval.
 The applied migration's stale `UNAPPLIED` header is accepted as historical text under the
 never-edit-applied-migrations rule. Track live/applied status in the thread/index/canonical docs instead.
 No code or migration was modified or applied by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (controlled LOCAL recall smoke test — results)
+
+Ran the approved controlled live test on Jesse's local machine. Drove the **real `mcp/server.mjs` over
+stdio** (spawned via an MCP SDK `StdioClientTransport`; creds from `mcp/.env.local` = Gemini key +
+service-role, gitignored, never committed). Throwaway client deleted after; worktree clean.
+
+**Protocol behavior:** `stdout` stayed protocol-clean (the client parsed every JSON-RPC response); the
+server's only log — `[4ward-brain] MCP server connected — tool: recall` — went to **stderr**. `listTools`
+→ `recall`.
+
+**recall #1 (valid)** — query: `"How do OnTheHash payments work on Supabase edge functions?"`, k=5.
+`isError:false`. Returned top-5, metadata-only (name/title/kind/description/source_path/freshness/`via`),
+all on-topic OnTheHash cluster, mixed `entry` + `chunk` provenance, descending similarity:
+1. `0.712` session-handoff-oth-exit (project) · via entry
+2. `0.706` project-onthehash-commercial (project) · via chunk
+3. `0.704` onthehash (project) · via chunk
+4. `0.663` project-onthehash-jotforms (project) · via chunk
+5. `0.658` project-oth-perks-migration-deferred (project) · via entry
+
+No body, chunk content, embedding, or secret field in any result. This exercised the real Gemini embed
+(`gemini-embedding-001`, `RETRIEVAL_QUERY`, 768) + the read-only `recall_memory` RPC.
+
+**recall #2 (invalid, k=999)** → `isError:true` — `recall failed: recall: "k" must be an integer in
+[1, 50]` (strict bounded validation; rejected before any Gemini/RPC call).
+
+**recall #3 (empty query)** → `isError:true` — `recall failed: recall: "query" must be a non-empty
+string`.
+
+No Gemini or RPC transport errors occurred during the run; both error cases above were the intended
+strict-arg rejections, surfaced cleanly as tool errors (not crashes, stdout stayed clean). Per your
+verdict: not distributing the service-role server, no multi-user, no write/secret tools. **Recall read
+slice is complete and verified live (local single-operator).**
+
+### Aegis — (optional close-out; recall slice verified live)
+<!-- Aegis: pull, then append your review here. -->
