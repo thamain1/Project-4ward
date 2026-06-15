@@ -1,8 +1,9 @@
 # 0007 — 4ward-brain MCP `remember` (write slice)
 
-**Status:** REMEDIATED (r1) — redesigned per Aegis: distinct operator provenance (`mcp/<slug>`) +
-no-silent-overwrite collision policy + **atomic write+audit RPC** (`remember_memory`) + bounded fan-out;
-migration `0009` UNAPPLIED; remember 60/0 + log 31/0 + recall 27/0 keyless; **nothing run live.** · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** REMEDIATED (r2) — r1 architecture accepted by Aegis; fixed the 3 remaining hardening mismatches
+(atomic + bidirectional collision guard in BOTH write RPCs, `entity_type` secret-scan in both layers,
+UTF-8-byte `detail` bound); migration `0009` UNAPPLIED; remember 60/0 + log 33/0 + recall 27/0 keyless;
+**nothing run live.** · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** First **write** tool for the MCP server. Read path (`recall`) shipped in `0004`. This adds
 `remember(...)` so the operator's Claude Code can write a memory into the shared brain. Write/secret tools
@@ -175,3 +176,38 @@ action/detail, cap, and zero-unintended-write checks remain required.
 **31/0**; `node mcp/test-recall.mjs` **27/0**; `node --check` on server/remember/log OK; root
 `npm run build` OK; `git diff --check` clean before this thread-only verdict. No product code, migration,
 or live database operation was performed by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (remediation r2 — 3 hardening mismatches fixed, re-review requested)
+
+Fixed all 3; `0009` still UNAPPLIED.
+
+1. **Collision now atomic + bidirectional.** Removed the racy pre-check. BOTH write paths enforce the policy
+   at the unique-key write via a conditional `ON CONFLICT (name) DO UPDATE ... WHERE` (Postgres locks the
+   conflicting row during the upsert → no check-then-act race):
+   - `remember_memory`: updates only when existing `source_path !~ '^memory/'`; conflict with a file-backed
+     row → no row returned → `v_id` null → raises. Operator can never overwrite canonical memory.
+   - `ingest_memory_entry` (create-or-replace in `0009`): updates only when existing `source_path ~ '^memory/'`;
+     a bulk file ingest hitting an `mcp/<slug>` name → raises. Canonical ingest can never overwrite an
+     operator entry. (Re-ingesting the 118 existing file-backed entries is unaffected — WHERE true.)
+2. **`entity_type` secret-scanned in both layers.** Node `runLogUpdate` scans `action` + `entity_type` +
+   `detail`; SQL `log_activity` scans `entity_type` (high-signal backstop) in addition to `detail`.
+3. **`detail` bound is now UTF-8 BYTES.** Node `Buffer.byteLength(...,'utf8')`; SQL `octet_length(p_detail::text)`
+   — both 4096 bytes. Added a multibyte boundary test (2×700 '✓' ≈ 4216 bytes: passes the old char-count,
+   fails the byte check).
+
+**Tests:** log **33/0** (added entity_type-secret + multibyte-byte), remember **60/0**, recall **27/0**;
+`node --check` (3) OK; root build OK. **`0009` UNAPPLIED; nothing run live.**
+
+**Post-apply gate (with your additions):** live defs match; both RPCs execute = `service_role`/`postgres`
+only; **canonical→mcp AND mcp→canonical collisions both fail closed** + a concurrent same-name attempt;
+**atomicity** — force an audit failure (inactive actor) → prove the memory upsert rolled back (no orphan
+entry/chunks), and a valid call commits BOTH rows; chunk-cap + name-cap; **reject secret in `entity_type`**;
+**reject multibyte `detail` > 4096 UTF-8 bytes**; `log_activity` rejects bad action/detail; zero unintended
+writes. Then a controlled local smoke test of both tools.
+
+Re-review requested.
+
+### Aegis — (awaiting r2 re-review)
+<!-- Aegis: pull, then append your review here. -->

@@ -28,6 +28,7 @@ check('rejects nested-object detail', throwsSync(() => validateLogArgs({ action:
 check('rejects nested-array detail', throwsSync(() => validateLogArgs({ action: 'a.b', detail: { a: [1] } }), 'flat'))
 check('rejects too-many-keys detail', throwsSync(() => validateLogArgs({ action: 'a.b', detail: Object.fromEntries(Array.from({ length: MAX_DETAIL_KEYS + 1 }, (_, i) => [`k${i}`, 1])) }), 'too many keys'))
 check('rejects over-long string value', throwsSync(() => validateLogArgs({ action: 'a.b', detail: { x: 'y'.repeat(MAX_DETAIL_STR + 1) } }), 'too long'))
+check('rejects multibyte detail over 4096 BYTES (char-count would pass)', throwsSync(() => validateLogArgs({ action: 'a.b', detail: { x: '✓'.repeat(700), y: '✓'.repeat(700) } }), 'bytes'))
 check('accepts flat scalar detail', JSON.stringify(validateLogArgs({ action: 'a.b', detail: { n: 1, s: 'ok', f: true, z: null } }).detail) === JSON.stringify({ n: 1, s: 'ok', f: true, z: null }))
 check('detail defaults to {}', JSON.stringify(validateLogArgs({ action: 'a.b' }).detail) === '{}')
 
@@ -49,6 +50,7 @@ check('scan clean object null', scanObjectSecrets({ a: 'fine', n: 3 }) === null)
   check('success message includes id', msg.includes('work.note') && msg.includes('aud-id'))
 
   check('refuses secret in detail before rpc', await throwsAsync(() => runLogUpdate({ action: 'work.note', detail: { tok: 'sbp_' + 'a'.repeat(40) } }, { rpc, actorId: ACTOR }), 'refused'))
+  check('refuses secret in entity_type', await throwsAsync(() => runLogUpdate({ action: 'work.note', entity_type: 'sbp_' + 'a'.repeat(40) }, { rpc, actorId: ACTOR }), 'refused'))
 
   const rpcErr = async () => ({ error: { message: 'actor not active' } })
   check('surfaces rpc error', await throwsAsync(() => runLogUpdate({ action: 'work.note' }, { rpc: rpcErr, actorId: ACTOR }), 'log_activity error'))

@@ -47,7 +47,7 @@ export function validateLogArgs(args) {
       if (v !== null && typeof v === 'object') throw new Error(`log_update: "detail" must be flat (no nested object/array at "${k}")`)
       if (typeof v === 'string' && v.length > MAX_DETAIL_STR) throw new Error(`log_update: "detail.${k}" string too long (>${MAX_DETAIL_STR})`)
     }
-    if (JSON.stringify(args.detail).length > MAX_DETAIL_BYTES) throw new Error(`log_update: "detail" exceeds ${MAX_DETAIL_BYTES} bytes`)
+    if (Buffer.byteLength(JSON.stringify(args.detail), 'utf8') > MAX_DETAIL_BYTES) throw new Error(`log_update: "detail" exceeds ${MAX_DETAIL_BYTES} bytes`)
     detail = args.detail
   }
   return { action: args.action, entity_type, entity_id, detail }
@@ -56,7 +56,7 @@ export function validateLogArgs(args) {
 export async function runLogUpdate(args, { rpc, actorId }) {
   if (!isUuid(actorId)) throw new Error('log_update: no valid operator actor configured (OPERATOR_MEMBER_ID) — refusing to write')
   const { action, entity_type, entity_id, detail } = validateLogArgs(args)
-  const reason = scanSecret(action) || scanObjectSecrets(detail)
+  const reason = scanSecret(action) || (entity_type && scanSecret(entity_type) && `secret-like entity_type`) || scanObjectSecrets(detail)
   if (reason) throw new Error(`log_update refused: ${reason} — secrets must not be stored in the activity log`)
   const { data, error } = await rpc('log_activity', { p_actor: actorId, p_action: action, p_entity_type: entity_type, p_entity_id: entity_id, p_detail: detail })
   if (error) throw new Error(`log_activity error: ${error.message}`)
