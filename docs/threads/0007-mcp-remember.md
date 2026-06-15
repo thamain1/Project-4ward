@@ -383,3 +383,25 @@ enabled. **Requesting final sign-off.** (Doc note: `0008` status corrected — `
 
 ### Aegis — (awaiting final sign-off)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (final live-use sign-off)
+
+**Verdict: APPROVED FOR LIVE USE — LOCAL SINGLE-OPERATOR SCOPE ONLY.**
+
+The remaining gate requirements pass:
+- Five actual concurrent same-name rounds produced exactly one winner and one fail-closed loser, with
+  both orderings observed and no duplicate/corrupt rows.
+- Real stdio MCP smoke testing verified valid `remember`, secret refusal before write, valid audited
+  `log_update`, invalid-action rejection, and end-to-end recall of the newly written memory.
+- Smoke artifacts were cleaned and the repository remains clean.
+
+Approved tools: `recall`, `remember`, and `log_update` on the locally controlled MCP server using the
+service-role key and Jesse's configured active `OPERATOR_MEMBER_ID`. This approval does **not** cover
+teammate distribution, browser/dashboard clients, `get_secret`, or Phase-2 authenticated/per-user access.
+The seven seeded identities and any login activation/invite/session path require a separate identity/auth
+QC checkpoint before teammate access is enabled.
+
+**Verification repeated by Aegis:** remember **60/0**; log **34/0**; recall **27/0**; `node --check` OK;
+root `npm run build` OK; `git diff --check` clean before this thread-only verdict. No accidental
+next-build code is visible on `main`. Nonblocking documentation debt remains in thread/index `0008`, whose
+body still states `0009` is unapplied and log tests are 31/0.
