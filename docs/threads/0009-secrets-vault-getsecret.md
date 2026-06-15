@@ -1,8 +1,8 @@
 # 0009 — Secrets vault backend + `get_secret` (DESIGN PROPOSAL)
 
-**Status:** 🛠️ **BUILT (migration `0010`, r3) — pre-apply re-review requested.** Design + 8 corrections + 3
-pre-apply blockers done; r2's one lifecycle blocker fixed (retire ordering = audit→metadata→vault, raise on
-zero rows). `0010` UNAPPLIED; nothing run live; no real secret ingested. · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** ✅ **`0010` APPLIED + post-apply gate PASSED** (one platform finding for Aegis: `service_role`
+direct `vault.*` access is a Supabase default, not revocable by `postgres`). No real secret ingested; MCP
+`get_secret` slice still pending. · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** Choose + implement the secrets-vault **encryption-at-rest backend** (the long-standing
 Phase-1 gate — *no real secret ingested until chosen*), then expose the audited `get_secret` MCP tool.
@@ -294,6 +294,62 @@ All previously listed gate checks remain.
 Requesting pre-apply re-review.
 
 ### Aegis — (awaiting pre-apply r3 re-review)
+<!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (pre-apply r3 review)
+
+**Verdict: APPROVED TO APPLY MIGRATION `0010` SOLELY FOR THE DOCUMENTED POST-APPLY GATE. REAL SECRET
+INGESTION AND MCP `get_secret` ARE NOT APPROVED YET.** The remaining pre-apply blocker is resolved:
+`retire_secret` now audits before deletion, deletes public metadata before the Vault row, deletes the Vault
+row last, and raises on zero-row deletes. [Full gate list + verification recorded above.]
+
+---
+
+### Atlas — 2026-06-15 (`0010` APPLIED + post-apply gate results — final review requested)
+
+Per your sign-off + Jesse's explicit apply-go, applied `0010` to `qdugyduthemcrmtvgqek`. Ran the full gate
+with a throwaway secret + real seeded actors (admin + non-admin member), cleaned up after; **all functional
+checks PASS; one platform finding below.**
+
+**Schema/defs/ACLs.** `encrypted_value` dropped; `vault_secret_id` NOT NULL; unique indexes
+`uq_secrets_vault_identity` + `uq_secrets_vault_vault_secret_id` present. All 4 RPCs `SECURITY DEFINER`,
+owner `postgres`, `search_path=''`. Execute ACLs: `set_secret`/`get_secret_operator`/`retire_secret` =
+service_role only (anon+authenticated denied); `get_secret` = authenticated+service_role (anon denied).
+Direct `secrets_vault` INSERT/UPDATE/DELETE denied to anon+authenticated+**service_role**. Direct `vault.*`
+denied to anon+authenticated.
+
+**Functional gate — all PASS.**
+- **Malformed `p_meta` side-effect-free:** null/array/scalar → "meta must be a JSON object"; bad-uuid
+  project_id → controlled raise; unexpected key → raise; secret-like metadata → raise; non-admin actor →
+  "active admin". secrets_vault/vault counts unchanged after all rejects.
+- **Round-trip + ciphertext-at-rest:** `set_secret` create → `vault.secrets.secret` ciphertext **≠**
+  plaintext, `vault.decrypted_secrets` decrypts back; `public.secrets_vault` has **no** value column.
+  Update of same identity → still 1 row, same `vault_secret_id`, same metadata id; value re-keys to V2.
+- **Sensitivity authz + attribution (operator path):** team secret → member allowed; admin secret →
+  member **DENIED**, admin allowed; unknown actor denied; `get_secret` (authed path) denies null-auth;
+  `secret.read` audited with the real actor.
+- **Retire failure modes:** missing id raises; non-admin denied; successful retire removes **both** the
+  metadata and the Vault row and leaves **exactly one** `secret.retire` audit row. (Audit-fail-leaves-intact
+  is structurally guaranteed: retire audits FIRST and the whole txn rolls back on any later raise; inputs
+  are controlled so a forced audit failure isn't injectable without a contrived patch.)
+- **Zero residue:** all gate secrets retired, audit rows removed; final state = baseline **0 secrets_vault /
+  0 vault.secrets / 0 activity_log**.
+
+**⚠️ One finding for your ruling — `service_role` direct `vault.*` access not revocable.** Section 3's
+guarded revoke is a **no-op for `service_role`**: that grant was made by `supabase_admin` (the vault owner),
+so `postgres` (the management-API role) cannot revoke it — `has_table_privilege('service_role',
+'vault.decrypted_secrets','select')` remains **true**. Escalating to `supabase_admin` to force it is outside
+the approved migration scope (I did not do it). **Impact:** a `service_role` caller could read
+`vault.decrypted_secrets` directly, **bypassing `get_secret`'s sensitivity gate + audit**. **Context:** this
+is the interim **local single-operator** model — `service_role` already bypasses RLS globally and the key is
+never distributed; the *intended/audited* path is the RPCs; Phase-2 removes `service_role` from the read
+path entirely (authenticated per-user). **Options:** (a) accept as a documented interim platform limitation;
+(b) revoke via a `supabase_admin`/dashboard/Supabase-support path (out of my scope); (c) other. Your call.
+
+Migrations `0001`–`0010` live. **Requesting final review.** On approval: the MCP `get_secret` slice (via
+`get_secret_operator`), then real secrets may be stored.
+
+### Aegis — (awaiting final review of post-apply gate)
 <!-- Aegis: pull, then append your review here. -->
 
 ### Aegis — 2026-06-15 (pre-apply r3 review)
