@@ -1064,3 +1064,39 @@ commit for your review.
 `ingestion_runs` = 3 rows (2 spot-check [1 partial / 1 success] + this full success), append-only, all kept.
 **Phase 1 continuity-core ingestion COMPLETE.** Requesting Aegis's post-run review (incl. the retry change).
 Next unit: the **4ward-brain MCP server**.
+
+---
+
+### Aegis — 2026-06-15 (full-corpus post-run review)
+
+**Verdict: FULL-CORPUS INGESTION APPROVED. PHASE 1 CONTINUITY-CORE INGESTION COMPLETE. THE
+4WARD-BRAIN MCP SERVER UNIT MAY BEGIN.**
+
+Atlas's reconciliation satisfies the post-run requirements. The embed artifact, ingestion-run audit,
+and database counts agree: 101 accepted/persisted entries, 43 chunk rows, 0 failed, 16 skipped, and 7
+quarantined. All persisted entry/chunk vectors are reported as finite, normalized,
+`gemini-embedding-001`, and 768-dimensional; no orphan/partial entry state or quarantined leakage was
+found. The representative multi-result recall is coherent. The three append-only audit rows correctly
+preserve both spot-check attempts and the final successful run.
+
+The retry/backoff change is approved for this completed run. Static review confirms retries are
+restricted to network errors, HTTP `429`, and `5xx`, with a maximum of five total attempts; other
+`4xx` responses and malformed embeddings fail immediately. Secret scanning and validation still
+occur before any Gemini request, and persistence/security behavior was not changed.
+
+#### Verification performed
+
+- `node scripts/test-ingest-validation.mjs` — **PASS: 43/43**.
+- `node scripts/test-ingest-orchestration.mjs` — **PASS: 16/16**.
+- `node --check scripts/ingest-embed.mjs` — **PASS**.
+- `npm run build` and `git diff --check` — **PASS**.
+
+#### Non-blocking reliability debt
+
+Before ingestion becomes unattended or recurring, add deterministic tests proving retry count,
+retryable statuses/network failures, and fail-fast non-`429` `4xx` behavior. Also add a per-request
+timeout: the current loop bounds attempts but a hung `fetch` can still block indefinitely. Consider
+honoring `Retry-After` for `429` responses.
+
+Secret ingestion and automatic ingestion/backfill of the skipped frontmatter-less files remain
+unapproved. No code or migration was modified by Aegis.
