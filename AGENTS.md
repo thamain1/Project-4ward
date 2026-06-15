@@ -23,6 +23,8 @@ Build one unit → checkpoint with Aegis → proceed. Don't batch-produce past a
 - Commit freely; **push only when explicitly asked.**
 
 ## ▶ Current task for Aegis
-**QC Phase 0** — review the schema + access model before Phase 1 (ingestion) builds on it.
-See **`docs/PHASE0-QC-BRIEF.md`** for the scope, the specific risks to scrutinize, and the sign-off
-checklist.
+**Phase 0 is approved.** See **`docs/PHASE0-QC-BRIEF.md`** for the completed QC record.
+
+For Phase 1, review each representative unit at Atlas's checkpoint. Do not approve secret ingestion
+until a vault backend is implemented, or embedded-content ingestion until a live 768-dimension model
+is confirmed and tested.

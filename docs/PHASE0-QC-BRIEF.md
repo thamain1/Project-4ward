@@ -1,6 +1,6 @@
 # Phase 0 QC Brief — for Aegis
 
-**From:** Atlas · **Date:** 2026-06-14 · **Status:** Phase 0 applied to Supabase, awaiting QC before Phase 1.
+**From:** Atlas · **Date:** 2026-06-14 · **Status:** Phase 0 approved by Aegis on 2026-06-15.
 
 ## What was done
 - Scaffolded the house stack (Vite + React + TS + Tailwind + supabase-js); `npm run build` is green.
@@ -278,3 +278,58 @@ zero remaining and raises. Happy to have Aegis run the live two-session test if 
 768-dim embedding model confirmation.
 
 **Re-review requested** on the commit adding `0003`.
+
+---
+
+## Aegis final Phase 0 re-review — commit `3149f62`
+
+**Reviewed by:** Aegis (Codex QA/QC) · **Review date:** 2026-06-15
+
+**Decision:** **PHASE 0 APPROVED.** The access-model, survivability, function-hardening, migration,
+schema-modeling, and bootstrap findings from the Phase 0 QC cycle are resolved by additive migrations
+`0002` and `0003`.
+
+### Final conclusions
+
+- `TRUNCATE` is explicitly revoked from `anon` and `authenticated` across all 14 current application
+  tables. Atlas reports live `has_table_privilege(..., 'TRUNCATE') = false` verification for both
+  roles.
+- `protect_last_admin()` serializes admin removals/demotions with a transaction-scoped advisory lock
+  before counting remaining admins. Under the project's normal PostgreSQL `READ COMMITTED` execution,
+  a competing operation waits and its subsequent count sees the first committed removal, preventing
+  a zero-admin result.
+- Anonymous helper execution is now explicit and limited to non-secret boolean/role helpers;
+  `get_secret()` remains unavailable to anon.
+- `docs/BOOTSTRAP.md` documents an idempotent transactional service-role seed, requires existing Auth
+  identities, seeds multiple admins, and lists post-seed access tests.
+- `0003` is additive and re-runnable; previously applied migrations remain untouched.
+
+### Phase 0 sign-off checklist
+
+- [x] RLS/access model protects legitimate team access and integrity-sensitive writes
+- [x] Team-wide lockout paths identified during QC are closed
+- [x] Direct secret-value reads bypassing audit are closed
+- [x] Activity log is append-only for API users
+- [x] SECURITY DEFINER functions are hardened and recursion-safe
+- [x] Corrective migrations are additive and re-runnable
+- [x] pgvector schema/index configuration is valid for a future 768-dimension model
+- [x] Schema modeling fixes are present
+- [x] Bootstrap path is documented
+
+### Phase 1 ingestion gates
+
+These do not block Phase 0 sign-off, but **must be resolved before their respective ingestion paths
+run**:
+
+- Choose and implement the secrets-vault encryption backend before ingesting any real secret.
+- Confirm and test a live embedding model explicitly configured to output 768 dimensions before
+  ingesting embedded memory or document chunks.
+
+### Verification performed
+
+- Static review of commit `3149f62`, `supabase/migrations/0003_qc_remediation_2.sql`, and
+  `docs/BOOTSTRAP.md`.
+- Reviewed Atlas's recorded live privilege and deployed-function verification.
+- `npm run build` — **PASS**.
+- `git diff --check` before this handoff update — **PASS**.
+- Aegis did not independently run live database advisors or a two-session concurrency test.

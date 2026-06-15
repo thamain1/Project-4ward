@@ -59,6 +59,7 @@ authorized teammate connect and work on demand.
 - **Packages:** before installing/upgrading to a version published <14 days ago, flag it first.
 
 ## Phases (see VISION §10)
-0 Provision (current) → 1 Continuity core (ingestion + MCP) → 2 Team onboarding (Auth/RLS/web dashboard
-= the team GUI) → 3 Sales factory → 4 Dev+Ops factory → 5 "4ward Router" model gateway + optional Tauri
-desktop wrapper (installable app over the same web codebase).
+0 Provision (**complete; Aegis approved 2026-06-15**) → 1 Continuity core (**next; ingestion + MCP**) →
+2 Team onboarding (Auth/RLS/web dashboard = the team GUI) → 3 Sales factory → 4 Dev+Ops factory →
+5 "4ward Router" model gateway + optional Tauri desktop wrapper (installable app over the same web
+codebase).
