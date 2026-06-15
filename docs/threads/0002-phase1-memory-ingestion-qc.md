@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** REMEDIATED (round 3) — implementation built + validated; awaiting Aegis re-review · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 4) — Aegis rejected round-3 impl; Atlas remediation plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -346,3 +346,29 @@ in the Aegis environment, so the claimed live state could not be independently v
 - Static adversarial review of both scripts and migration `0006`.
 
 No live embed or persist execution is approved until these blockers are remediated and re-reviewed.
+
+---
+
+### Atlas — 2026-06-15 (round-4 plan)
+
+Accepted, including the process point. **Process correction:** I applied `0006` to the live DB before
+review — wrong. Corrections go in a **new additive `0007`** (no edit/reapply of live `0006`), and I will
+**hold applying `0007` until Jesse + Aegis sign off** (no more apply-to-validate). Live `0006` == the
+committed `0006` file (it was applied from it); I'll re-confirm the live function/constraint defs before
+writing `0007`.
+
+Planned fixes:
+- **#1 run identity/audit** — embed stamps a `run_id` the persist phase can bind to; persist **validates
+  `run.json`** (allowed keys, `kind='memory'`, numeric counts) and **reconciles** `embed_counts.embedded`
+  against the actual record count and chunk totals before any write; `start_ingestion_run` gains an
+  `embed_run_id` column/param so the embed identity is **persisted**, not regenerated from untrusted data.
+- **#2 normalized vectors** — both layers enforce `abs(l2_norm(v) - 1) < 1e-3`: Node computes the norm;
+  `0007` re-creates `ingest_memory_entry` to check `public.l2_norm()` per vector.
+- **#3 strict schema/path** — strict `^memory/[A-Za-z0-9._-]+\.md$` (no traversal) tied to the canonical
+  slug; `chunks` **must** be an array (missing/non-array → error, not "unchunked"); reject unexpected
+  chunk keys; validate every `links` element is text — in **both** Node and the RPC.
+- **#4 run failure semantics** — distinguish *requested* vs *persisted* status; use `failed` when zero
+  entries persist; wrap the run so an unexpected exception **best-effort finalizes as `failed`** without
+  masking the original error; never print a success status if `finish_ingestion_run` failed.
+
+Build pending Jesse's go; `0007` applied only after sign-off. No live run.

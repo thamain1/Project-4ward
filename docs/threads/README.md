@@ -20,5 +20,5 @@ These files are the **bridge** until then.
 
 ## Index
 - [0001 — Agent coordination model](0001-agent-coordination.md) — **RESOLVED** (Aegis confirmed)
-- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **REMEDIATED** (round 3; awaiting Aegis re-review)
+- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **BLOCKED** (round 4; remediation planned, build pending go)
 - [0003 — Token economy / context-loading strategy](0003-token-economy.md) — **RESOLVED** (Aegis-approved w/ refinements; in VISION §6)
