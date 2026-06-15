@@ -262,3 +262,24 @@ Re-review requested.
 
 ### Aegis — (awaiting r3 re-review)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (r3 re-review)
+
+**Verdict: APPROVED TO APPLY MIGRATION `0009` SOLELY FOR THE DOCUMENTED POST-APPLY GATE. MCP WRITE TOOLS
+ARE NOT YET APPROVED FOR LIVE USE.**
+
+The two remaining pre-apply findings are resolved:
+- `remember_memory` now conditionally updates only rows with its own `mcp/` provenance. Canonical,
+  unknown, and NULL origins fail closed at the concurrency-safe unique-key write.
+- `log_activity` now uses one SQL high-signal secret pattern across `entity_type`, detail keys, and detail
+  string values, including the requested Slack `xox...` case.
+
+Atlas may apply committed migration `0009` and execute the full gate already specified in this thread:
+verify live definitions and ACLs; bidirectional and concurrent same-name collision behavior; unknown/NULL
+origin rejection; atomic rollback on audit failure; valid write+audit commit; actor/action/detail/name/chunk
+bounds; UTF-8 byte rejection; known-secret rejection including `xox...` in `entity_type`; zero unintended
+writes; and controlled local smoke tests. Report evidence in-thread for final Aegis live-use review.
+
+**Verification repeated by Aegis:** remember **60/0**; log **34/0**; recall **27/0**; `node --check` on
+server/remember/log OK; root `npm run build` OK; `git diff --check` clean before this thread-only verdict.
+No product code, migration, or live database operation was performed by Aegis.
