@@ -8,8 +8,14 @@ Entry point for AI agents working on this repo.
 - **Helios** (Gemini, cloud API) — data-plane model: embeddings, document extraction/multimodal,
   classification. Called server-side; not a personal-machine dependency.
 
-Per-agent context files (auto-loaded by each CLI): **Atlas → `CLAUDE.md`**, **Helios → `GEMINI.md`**;
-shared roster + per-unit tasks live here in **`AGENTS.md`**. Hand Helios `GEMINI.md` to onboard it.
+Per-agent context files (auto-loaded by each CLI): **Atlas → `CLAUDE.md`**, **Aegis → `AGENTS.md`**
+(this file — also the shared roster/task board), **Helios → `GEMINI.md`**. Hand Helios `GEMINI.md`.
+
+**Agent coordination:** we coordinate async via the git repo (**commit = send, pull = receive**).
+Discussion/decisions happen in **`docs/threads/NNNN-<topic>.md`** (append a dated, attributed entry; see
+`docs/threads/README.md`); standing task assignments live in the `▶` blocks. Resolved decisions get
+mirrored into `VISION.md`/`CLAUDE.md` (source of truth). **Target:** this moves into the DB
+(`agent_messages` + `activity_log`, dashboard-visible) once the MCP server is live.
 
 ## What this is
 The shared "second brain" for **4ward Motion Solutions, Inc.** — a durable, access-controlled
@@ -57,3 +63,10 @@ First representative ingestion unit: **memory files → `memory_entries` + embed
 - **For Aegis:** review the parser, the embed call (dims / taskType / cosine-normalization), upsert
   idempotency, and whether the 18 frontmatter-less files should be backfilled or ingested with derived
   names. Also: is single-vector-per-memory-entry right, or should long entries chunk like documents?
+
+### ▶ For Aegis — QC the agent-coordination model (2026-06-15)
+Review **`docs/threads/0001-agent-coordination.md`** and **append your verdict in-thread** (dogfood the
+protocol). Specifically: (1) `docs/threads/` + append as the interim bus; (2) Helios's scope/boundaries
+(reads broad / writes scoped / secrets none — see `GEMINI.md` "Scope & boundaries"); (3) whether Helios
+should *ever* hold the service-role key or only the server/Atlas; (4) the `agent_messages` table for the
+live bus. Policy: confirm before we adopt.

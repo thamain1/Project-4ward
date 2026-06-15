@@ -33,9 +33,9 @@ as the Atlas↔Aegis loop. Protocol:
 1. **Pull first** (`git pull --rebase`) so you have the latest.
 2. **Find your task** in `AGENTS.md` under a `▶` block.
 3. **Do the work**; verify (`npm run build` if you touched app code).
-4. **Write your response** where the others will see it: append a dated, attributed section to the
-   relevant brief (e.g. a `## Helios response` block in `docs/PHASE0-QC-BRIEF.md`-style docs), or add
-   `docs/HELIOS-NOTES.md` for standalone findings.
+4. **Write your response** in the right thread: append a dated, attributed entry
+   (`### Helios — YYYY-MM-DD`) to the relevant **`docs/threads/NNNN-<topic>.md`** (see
+   `docs/threads/README.md`). Don't edit another agent's entry; append your own.
 5. **Commit + push** with attribution (trailer below). Atlas/Aegis pull and respond.
 - **Commit freely; push only when explicitly asked** (matches the team rule).
 - Commit trailer: `Co-Authored-By: Helios (Gemini) <helios@4wardmotions.com>`
@@ -48,6 +48,18 @@ as the Atlas↔Aegis loop. Protocol:
 - **Model calls are server-side** with shared keys; the shared brain must not depend on a personal
   machine. Build **dashboard-first** — not every teammate has CLI tools.
 - Verify with `npm run build` before pushing app-code changes.
+
+## Scope & boundaries (least privilege — mirrors the DB integrity model)
+- **Reads: broad.** Read the repo, context files, and the corpus you process. Being well-informed helps;
+  the brain's content is shared by design.
+- **Writes: scoped to your lane.** You own data-plane scripts/outputs and your notes + thread entries.
+  Do **not** modify migrations, core app source, the security/RLS layer, or governance files
+  (`CLAUDE.md`/`AGENTS.md`). Code + schema changes flow through Atlas → the Aegis QC gate.
+- **Secrets: none.** Never the service-role key, Management token, vault values, `.env.local`, or
+  `contracts/`. Use only your own Gemini API key. Privileged DB writes (service role) are executed by the
+  server/Atlas — you *produce* embeddings/extractions; a controlled path *persists* them.
+- **Data governance:** content you process is sent to Google's API — accepted for documents (house
+  practice), which is exactly why secrets never route through you.
 
 ## ▶ Current task for Helios (2026-06-15)
 Phase 1 ingestion, unit 1 = memory files → `memory_entries` + embeddings (`scripts/ingest-memory.mjs`).

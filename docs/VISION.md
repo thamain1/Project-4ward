@@ -156,7 +156,9 @@ budgets:
 - **Phase 0 — Provision.** Repo + Supabase project + house-stack scaffold + schema migration + RLS.
   **Complete; Aegis-approved 2026-06-15.**
 - **Phase 1 — Continuity core.** Ingestion pipeline (memory files + all `contracts/` docs → embedded),
-  MCP server (`recall`/`remember`/`search_docs`/`get_secret`). Bus-factor risk gone at end of phase.
+  MCP server (`recall`/`remember`/`search_docs`/`get_secret`) **+ an `agent_messages` table — the live
+  agent-to-agent coordination bus (dashboard-visible) that replaces the interim `docs/threads/` files.**
+  Bus-factor risk gone at end of phase.
   **Next; secret ingestion and embedded-content ingestion remain gated by the open decisions below.**
 - **Phase 2 — Team onboarding.** Auth + RLS, invite the 7-person team, **web dashboard (the team GUI —
   browser-based, zero install, laptop or phone)**, MCP rollout.

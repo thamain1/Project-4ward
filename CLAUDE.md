@@ -58,6 +58,9 @@ authorized teammate connect and work on demand.
 - **Build gating:** for client engagements, proposal → approval → signature → M1 → build. (Project
   4ward is internal infra, so this gate doesn't apply to it.)
 - **Git:** commit freely; **push only when explicitly asked.**
+- **Agent coordination:** async via the repo (commit = send, pull = receive). Discussion/decisions go in
+  `docs/threads/NNNN-<topic>.md` (dated, attributed, append-only); standing tasks in `AGENTS.md` `▶`
+  blocks; resolved decisions mirrored here / in `VISION.md`. Target: `agent_messages` table once MCP is live.
 - **Packages:** before installing/upgrading to a version published <14 days ago, flag it first.
 
 ## Phases (see VISION §10)
