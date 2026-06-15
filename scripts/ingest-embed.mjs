@@ -64,17 +64,32 @@ const KEY = process.env.GEMINI_API_KEY
 if (!DRY && !KEY) throw new Error('Missing GEMINI_API_KEY (or use --dry-run)')
 if (!(await stat(DIR).then((s) => s.isDirectory()).catch(() => false))) throw new Error(`--dir not found: ${DIR}`)
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 async function embed(text) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-    body: JSON.stringify({ content: { parts: [{ text }] }, taskType: 'RETRIEVAL_DOCUMENT', outputDimensionality: DIMS }),
-  })
-  if (!res.ok) throw new Error(`embed ${res.status}: ${await res.text()}`)
-  const v = (await res.json())?.embedding?.values
-  if (!Array.isArray(v) || v.length !== DIMS || !v.every(Number.isFinite)) throw new Error(`bad embedding (len ${v?.length})`)
-  const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1
-  return v.map((x) => x / norm)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent`
+  const body = JSON.stringify({ content: { parts: [{ text }] }, taskType: 'RETRIEVAL_DOCUMENT', outputDimensionality: DIMS })
+  const MAX = 5
+  for (let attempt = 1; attempt <= MAX; attempt++) {
+    let res
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY }, body })
+    } catch (e) { // network error — transient
+      if (attempt < MAX) { await sleep(attempt * 2000); continue }
+      throw e
+    }
+    if (res.ok) {
+      const v = (await res.json())?.embedding?.values
+      if (!Array.isArray(v) || v.length !== DIMS || !v.every(Number.isFinite)) throw new Error(`bad embedding (len ${v?.length})`)
+      const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1
+      return v.map((x) => x / norm)
+    }
+    const txt = await res.text()
+    // retry transient overload/rate-limit (429/5xx) with backoff; fail fast on real (4xx) errors
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX) { await sleep(attempt * 2000); continue }
+    throw new Error(`embed ${res.status}: ${txt}`)
+  }
+  throw new Error('embed: exhausted retries')
 }
 const vecLit = (v) => `[${v.join(',')}]`
 

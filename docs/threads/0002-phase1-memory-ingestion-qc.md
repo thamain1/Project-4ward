@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** FULL CORPUS INGESTION APPROVED by Aegis — awaiting Jesse's go to run it · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** FULL CORPUS INGESTED — 101 entries / 43 chunk-vectors live; success run, 0 failed, integrity + recall verified; awaiting Aegis post-run review · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -1024,3 +1024,43 @@ promotion**; (3) all persisted vectors `gemini-embedding-001` / finite / normali
 or partial entry state; (4) secrets + the known frontmatter-less/skipped files stay excluded; (5) final
 ingestion run id/status + a representative multi-result recall check. The spot-check's 2 entries and the
 append-only `partial` run row remain (not deleted).
+
+---
+
+### Atlas — 2026-06-15 (FULL CORPUS INGESTED — reconciliation)
+
+Ran the full ingestion on Jesse's go. Final state for Aegis's post-run review.
+
+**Resilience change (transparent — code after approval):** the full embed hit transient Gemini `503`
+overloads (~1–2 per ~130 calls, different files each run). I added **bounded retry/backoff to the embed
+Gemini call only** (`ingest-embed.mjs`: retry `429`/`5xx` up to 5× with linear backoff; fail-fast on `4xx`).
+**No change** to validation, persistence, identity, or security. The clean run used it; diff is in this
+commit for your review.
+
+**Reconciliation (your 5 items):**
+1. **Counts** — embed artifact: accepted 101 / quarantined 7 / skipped 16 / failed 0 / embedded_vectors
+   131 / chunk_rows 43. DB: `memory_entries` = **101**, `memory_chunks` = **43**. Latest run `b8536790…`
+   = **success**, `{accepted:101, persisted:101, failed:0, skipped:16, quarantined:7, chunk_rows:43}`.
+2. **Failed / quarantined / skipped (by reason; not promoted):**
+   - failed: **0** (earlier runs' transient 503s were never persisted; the retry-enabled run embedded 101 cleanly).
+   - quarantined (7, kept OUT): `intellisign.md`, `intellitax.md`, `kingdom-shepherd-os.md`,
+     `reference_cf_pages_secrets_require_redeploy.md`, `reference_mes_customer_documents_debug.md`,
+     `session_handoff_oth_phase4.md`, `stripe-keys.md` (content secret-scan / filename match).
+   - skipped (16, frontmatter-less — manual classification, NOT auto-derived): `4wardmotion.md`,
+     `claude-session-strategy.md`, `fastalpr-implementation.md`, `impacttracker.md`, `intellicity.md`,
+     `intellimetrics.md`, `intellioptics.md`, `intellioptics-2.5.md`, `intellipour.md`,
+     `intelliproperty.md`, `intelliservice.md`, `intelliservice-demo.md`, `intellitax-interview-gaps.md`,
+     `mentorapp-desktop-layout.md`, `sultanofswing.md`, `zodiac-aos534.md`.
+3. **Vectors** — all `gemini-embedding-001`, finite, unit-normalized, 768-dim; 0 bad entry/chunk vectors;
+   **0 inconsistent** entries (each is exactly single-vector XOR chunked — no orphan/partial state).
+4. **Exclusions verified** — `quarantined_leaked` query = **0** (no secret/quarantined name in
+   `memory_entries`; skipped files absent).
+5. **Final run + recall** — run `b8536790-5cbd-41fc-9a0d-56fa9eea92fd` = `success`. Representative recall
+   (query *"OnTheHash World Cup payments migration to Supabase edge functions"*, across entry + chunk
+   vectors) → top 5 all OnTheHash-cluster: `onthehash` 0.748, `session-handoff-oth-exit` 0.7475,
+   `project-onthehash-commercial` 0.7224, `project-onthehash-jotforms` 0.7054,
+   `project-oth-perks-migration-deferred` 0.6981.
+
+`ingestion_runs` = 3 rows (2 spot-check [1 partial / 1 success] + this full success), append-only, all kept.
+**Phase 1 continuity-core ingestion COMPLETE.** Requesting Aegis's post-run review (incl. the retry change).
+Next unit: the **4ward-brain MCP server**.
