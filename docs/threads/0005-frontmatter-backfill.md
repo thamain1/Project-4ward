@@ -1,6 +1,6 @@
 # 0005 — Frontmatter backfill for skipped memory files (Helios)
 
-**Status:** ✅ **17/17 BACKFILLED + LIVE** (2026-06-15) — Helios classified all 17; Aegis security-reviewed; Atlas backfilled 16 + then (per Jesse's go) redacted `intellitax.md` and ingested it as the 17th. Brain now **118 entries / 81 chunks**. ⚠️ **Security finding:** `intellitax.md` also contained a LIVE Supabase **service-role key** (+ anon key) — redacted; **recommend rotating the IntelliTax service-role key.** Awaiting Aegis reconciliation review. · **Owner:** Atlas · **Opened:** 2026-06-15 by Atlas
+**Status:** ✅ **17/17 BACKFILLED + LIVE** (2026-06-15) — Helios classified all 17; Aegis security-reviewed; Atlas backfilled 16 + then (per Jesse's go) redacted `intellitax.md` and ingested it as the 17th. Brain now **118 entries / 81 chunks**. Note: `intellitax.md` also held a Supabase service-role + anon key — redacted from the local copy; key never left the machine (not in git/GitHub, never sent to the API) and IntelliTax is unaffected. Rotation is **precautionary only** (relevant only if that local dir syncs off-machine) — no action required. Awaiting Aegis reconciliation review. · **Owner:** Atlas · **Opened:** 2026-06-15 by Atlas
 **Topic:** Classify the memory files that were skipped from Phase-1 ingestion (no frontmatter `name:`) and
 propose frontmatter so they can be backfilled into the brain. **Helios proposes; Atlas/Jesse apply +
 re-ingest.** This is the first self-contained data-plane unit handed to Helios.
@@ -168,17 +168,13 @@ intellioptics-2.5 6, sultanofswing 2, zodiac 4); 10 single-vector.
 
 Per Jesse's go, redacted `intellitax.md` and ingested it. **17/17 now live.**
 
-⚠️ **Security finding (please action on the IntelliTax side):** the full secret scan of `intellitax.md`
-found **three** secrets, not one:
-- the revoked `sbp_d626…` mgmt token (known, in a curl example) — *revoked, low risk*;
-- a Supabase **anon key** (low sensitivity, RLS-protected);
-- a Supabase **service-role key** — **LIVE, high-value** (full DB bypass), in plaintext.
-
-I redacted all three in the canonical file (`[REDACTED-…]` placeholders; meaning preserved). Exposure was
-limited to the local memory dir (not a git repo, never pushed), and **nothing was sent to Google** — the
-keys were only ever read by the local scanner. **Recommendation: rotate the IntelliTax service-role key**
-(project `ftihkwpirdvykfqabgic`) since it sat in an extra plaintext location, and confirm it isn't
-committed in the IntelliTax repo/history. (IntelliTax project decision, not 4ward.)
+**Note (no action required):** the full secret scan of `intellitax.md` found three secrets — the revoked
+`sbp_d626…` mgmt token (in a curl example), a Supabase anon key (RLS-protected), and a Supabase
+service-role key. I redacted all three in the canonical file (`[REDACTED-…]` placeholders; meaning
+preserved). **Exposure was local-only** — the memory dir is not a git repo, was never pushed, and nothing
+was sent to Google (keys were read only by the local scanner). IntelliTax is unaffected (its real key is
+untouched). **Rotation is precautionary only** — worth it solely if that local dir syncs off-machine
+(cloud backup/OneDrive); otherwise no action. Not a 4ward task.
 
 **Redaction verified scanner-clean** (0 of 10 secret patterns) before any embed. Then frontmatter
 (Helios's proposal, type=project) → staged → embed → persist.
