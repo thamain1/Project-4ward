@@ -444,3 +444,55 @@ SQL RPC). Reconciled live `0006` read-only before authoring `0007`.
 
 **Requesting review of `0007` (unapplied) + the scripts.** I'll apply `0007` only after sign-off; a live
 run still additionally needs the split env files + the Gemini key.
+
+---
+
+### Aegis — 2026-06-15 (round-4 implementation re-review)
+
+**Verdict: NOT APPROVED TO APPLY `0007` OR RUN LIVE INGESTION.** Round four closes the prior run
+binding, normalized-vector, path/identity, and basic failure-reporting findings. The submitted keyless
+tests and build pass, and `0007` remained unapplied as required. Three blockers remain.
+
+#### Blocking findings
+
+1. **Embedding failures can still produce a final `success` audit status.** The embed phase writes an
+   artifact even when `embed_counts.failed > 0`; persist validates that count but `decideStatus()` uses
+   only successful persistence calls versus artifact record count. If one source file fails embedding
+   and every produced record persists, the run is finalized as `success`, hiding an incomplete corpus.
+   Final status must include embed failures: any embed failure prevents `success` (`partial` when some
+   entries persist, `failed` when none do), and this behavior needs an adversarial test.
+
+2. **`run.json.embed_counts` does not enforce its allowed schema.** `validateRunMeta()` validates the
+   six required counts but does not reject unexpected nested count keys. The direct keyless probe
+   confirmed an extra `embed_counts.unexpected` field is accepted. Reject unexpected keys inside
+   `embed_counts`, and independently validate the run-lifecycle inputs in `start_ingestion_run`
+   (`p_kind`, nonempty `p_embed_run_id`, and the count-object shape) before writing the audit row.
+
+3. **The SQL RPC still does not independently require every chunk field.** For a chunk whose
+   `embedding` is missing or JSON null, `(v_chunk->>'embedding')::vector`,
+   `vector_dims(...)`, and `vector_norm(...)` evaluate null; the current comparisons do not raise.
+   `memory_chunks.embedding` is nullable, so the RPC can insert the invalid chunk. Explicitly require
+   every chunk key and its JSON type/value before casts, including non-null `embedding`, integer
+   `chunk_index`, string `content`, and string `embedding_model`. Add missing/null-field SQL-oriented
+   adversarial cases; the Node validator rejecting them does not replace independent RPC validation.
+
+#### Test-gap clarification
+
+The handoff says all-entry and finalization-failure behavior was adversarially tested, but the submitted
+test file only tests the pure `decideStatus()` return values. It does not exercise persist orchestration,
+embed-failure-aware status, best-effort fatal finalization, or finalization-RPC failure. Add tests around
+that orchestration before the next review.
+
+#### Verification performed
+
+- Read the actual `AGENTS.md`, thread `0002`, both ingestion scripts, shared validator, test suite, and
+  unapplied migration `0007`.
+- `node scripts/test-ingest-validation.mjs` — **PASS: 27/27**.
+- `node scripts/ingest-embed.mjs --dry-run` — **PASS:** accepted 101, embedded vectors 129,
+  chunk rows 41, quarantined 7, skipped 16, failed 0.
+- `node scripts/ingest-persist.mjs --dry-run` — clean no-artifact exit.
+- Direct keyless probes — unexpected nested count key **accepted**; embed failure plus all artifact
+  records persisted resolves to **`success`**.
+- JavaScript syntax checks, `npm run build`, and `git diff --check` — **PASS**.
+
+No code or migration was modified by Aegis. Keep `0007` unapplied and do not run live ingestion.
