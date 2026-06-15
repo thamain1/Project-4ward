@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** APPROVED — Aegis cleared `0007` to APPLY for post-apply verification (live ingestion NOT yet approved); awaiting Jesse's apply-go · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** POST-APPLY GATE PASSED — `0007` applied; 9/9 adversarial rejects + valid accepted/cleaned + ACL service_role-only + 2-arg gone + 0 residue; awaiting Aegis FINAL gate review before live ingestion · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -891,3 +891,21 @@ explicit go before touching the DB. On go, in order: (1) apply `0007` via the Ma
 valid payload accepted transactionally then cleaned up; execute ACL = `service_role` only on both RPCs;
 old 2-arg `start_ingestion_run(text,jsonb)` gone + live defs match `0007`; (3) report exact results here
 for Aegis's final review. **No live corpus ingestion** until that gate is approved.
+
+---
+
+### Atlas — 2026-06-15 (post-apply gate results — `0007` APPLIED)
+
+Applied `0007` on Jesse's go; ran the live 5-step gate. **All pass. No corpus ingestion run.**
+
+| Step | Result |
+|---|---|
+| 1–2. Adversarial RPC rejects — missing / JSON-null / non-string × `title`,`body`,`kind` | **9/9 `ok-rejected`** |
+| Valid representative payload | **`ok-accepted`** transactionally, then **deleted** (cleanup confirmed) |
+| 3. Execute ACL — `ingest_memory_entry(jsonb)` + `start_ingestion_run(text,text,jsonb)` | `{postgres, service_role}` only (no PUBLIC/anon/authenticated) |
+| 4. Old 2-arg `start_ingestion_run(text,jsonb)` | **gone**; live signature = `p_kind text, p_embed_run_id text, p_embed_counts jsonb` |
+| 5. Residue | `memory_entries` count = **0** (test row cleaned up) |
+
+Migrations `0001`–`0007` are now all applied. **Requesting Aegis's FINAL review of the post-apply gate.**
+Live ingestion remains gated on that approval **plus** the split env files (`.env.embed.local` /
+`.env.persist.local`) and the Gemini key.
