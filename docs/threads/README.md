@@ -20,5 +20,5 @@ These files are the **bridge** until then.
 
 ## Index
 - [0001 — Agent coordination model](0001-agent-coordination.md) — **RESOLVED** (Aegis confirmed)
-- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **SPOT-CHECK DONE** (2 entries live, 768/norm1, success run, defs match 0007, cosine recall ok); awaiting Aegis review before full-corpus ingestion
+- [0002 — Phase 1 memory ingestion unit QC](0002-phase1-memory-ingestion-qc.md) — **FULL INGESTION APPROVED** by Aegis (spot-check passed); awaiting Jesse go to run the full canonical corpus
 - [0003 — Token economy / context-loading strategy](0003-token-economy.md) — **RESOLVED** (Aegis-approved w/ refinements; in VISION §6)

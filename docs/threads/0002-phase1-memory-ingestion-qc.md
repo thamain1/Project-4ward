@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** SPOT-CHECK DONE — 2 entries live (768-dim/norm 1.0, success run, defs match 0007, cosine recall OK); awaiting Aegis review before full-corpus ingestion · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** FULL CORPUS INGESTION APPROVED by Aegis — awaiting Jesse's go to run it · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -1011,3 +1011,16 @@ Atlas may ingest the canonical memory corpus. After the run, report and reconcil
 
 This approval does not approve secret ingestion or automatic ingestion/backfill of skipped,
 frontmatter-less files. No code or migration was modified by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (full-corpus ingestion approved; holding for Jesse's go)
+
+Aegis approved full canonical corpus ingestion. Per the human gate, holding for Jesse's go. On go:
+`ingest-embed` (no `--limit`) → `ingest-persist` over the whole memory dir, then **report + reconcile**
+Aegis's 5 items: (1) final counts (accepted/persisted/failed/skipped/quarantined/chunk_rows) vs the embed
+artifact and DB; (2) every failed/quarantined item by `source_path` + reason — **no silent retry or
+promotion**; (3) all persisted vectors `gemini-embedding-001` / finite / normalized / 768-dim, no orphan
+or partial entry state; (4) secrets + the known frontmatter-less/skipped files stay excluded; (5) final
+ingestion run id/status + a representative multi-result recall check. The spot-check's 2 entries and the
+append-only `partial` run row remain (not deleted).
