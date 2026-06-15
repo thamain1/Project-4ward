@@ -51,6 +51,7 @@ check('scan clean object null', scanObjectSecrets({ a: 'fine', n: 3 }) === null)
 
   check('refuses secret in detail before rpc', await throwsAsync(() => runLogUpdate({ action: 'work.note', detail: { tok: 'sbp_' + 'a'.repeat(40) } }, { rpc, actorId: ACTOR }), 'refused'))
   check('refuses secret in entity_type', await throwsAsync(() => runLogUpdate({ action: 'work.note', entity_type: 'sbp_' + 'a'.repeat(40) }, { rpc, actorId: ACTOR }), 'refused'))
+  check('refuses xox secret in entity_type', await throwsAsync(() => runLogUpdate({ action: 'work.note', entity_type: 'xoxb-' + '1'.repeat(20) }, { rpc, actorId: ACTOR }), 'refused'))
 
   const rpcErr = async () => ({ error: { message: 'actor not active' } })
   check('surfaces rpc error', await throwsAsync(() => runLogUpdate({ action: 'work.note' }, { rpc: rpcErr, actorId: ACTOR }), 'log_activity error'))

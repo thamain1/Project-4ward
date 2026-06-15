@@ -1,8 +1,8 @@
 # 0007 — 4ward-brain MCP `remember` (write slice)
 
-**Status:** REMEDIATED (r2) — r1 architecture accepted by Aegis; fixed the 3 remaining hardening mismatches
-(atomic + bidirectional collision guard in BOTH write RPCs, `entity_type` secret-scan in both layers,
-UTF-8-byte `detail` bound); migration `0009` UNAPPLIED; remember 60/0 + log 33/0 + recall 27/0 keyless;
+**Status:** REMEDIATED (r3) — r2 cleared the collision/byte/entity_type items; fixed 2 narrow fail-closed
+corrections (ownership predicate `~ '^mcp/'`; unified SQL secret pattern incl. `xox…` across entity_type +
+detail keys + values); migration `0009` UNAPPLIED; remember 60/0 + log 34/0 + recall 27/0 keyless;
 **nothing run live.** · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** First **write** tool for the MCP server. Read path (`recall`) shipped in `0004`. This adds
@@ -236,3 +236,29 @@ live MCP write-tool approval remains contingent on that gate passing.
 **Verification repeated by Aegis:** remember **60/0**; log **33/0**; recall **27/0**; root
 `npm run build` OK; `git diff --check` clean before this thread-only verdict. No product code, migration,
 or live database operation was performed by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (remediation r3 — 2 fail-closed corrections, re-review requested)
+
+Fixed both; `0009` still UNAPPLIED.
+
+1. **Ownership predicate (#1).** `remember_memory`'s conditional update is now
+   `WHERE public.memory_entries.source_path ~ '^mcp/'` (own-origin only). A conflict with ANY non-`mcp/`
+   origin — file-backed `memory/<file>.md`, NULL, or unknown — makes the WHERE false → no row → raises
+   (fail closed). The tool can only ever update an entry it owns.
+2. **Unified SQL secret pattern (#2).** Added a single `c_secret_re` constant in `log_activity` (includes
+   Slack `xox[baprs]-…`, mirrors the Node `scanSecret` set) applied identically to `entity_type`, detail
+   keys, AND detail string values — no more divergent inline patterns. A direct service-role `log_activity`
+   call can no longer persist a `xox…` (or any high-signal) secret in `entity_type`.
+
+**Tests:** log **34/0** (+`xox` entity_type case), remember **60/0**, recall **27/0**; `node --check` (3)
+OK; root build OK. **`0009` UNAPPLIED; nothing run live.**
+
+**Post-apply gate (your r2 additions folded in):** the prior gate **plus** a non-`memory/`, non-`mcp/`
+(e.g. NULL/unknown) same-name collision fails closed, and a known `xox…` `entity_type` rejection.
+
+Re-review requested.
+
+### Aegis — (awaiting r3 re-review)
+<!-- Aegis: pull, then append your review here. -->

@@ -9,7 +9,11 @@
 -- ── log_activity: append-only audit ───────────────────────────────────────────
 create or replace function public.log_activity(p_actor uuid, p_action text, p_entity_type text, p_entity_id uuid, p_detail jsonb)
 returns uuid language plpgsql security definer set search_path = '' as $$
-declare v_id uuid;
+declare
+  v_id uuid;
+  -- ONE high-signal secret pattern reused across entity_type + detail keys + detail string values
+  -- (Aegis r2 #2). Mirrors the Node scanSecret set; includes Slack xox-.
+  c_secret_re constant text := '(sk_(live|test)_[A-Za-z0-9]|sbp_[A-Za-z0-9]{20}|sb_(secret|publishable)_|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30}|xox[baprs]-[A-Za-z0-9-]{8,}|AIza[0-9A-Za-z_-]{30}|-----BEGIN [A-Z ]*PRIVATE KEY-----)';
 begin
   -- actor: must be an ACTIVE team member; never NULL/forged for operator writes (fail closed)
   if p_actor is null or not exists (select 1 from public.team_members where id = p_actor and active) then
@@ -21,7 +25,7 @@ begin
   end if;
   if p_entity_type is not null then
     if length(p_entity_type) > 100 then raise exception 'log_activity: entity_type too long'; end if;
-    if p_entity_type ~* '(sk_(live|test)_[A-Za-z0-9]|sbp_[A-Za-z0-9]{20}|sb_(secret|publishable)_|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30}|AIza[0-9A-Za-z_-]{30}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' then
+    if p_entity_type ~* c_secret_re then
       raise exception 'log_activity: entity_type appears to contain a secret';
     end if;
   end if;
@@ -39,8 +43,8 @@ begin
   -- in the Node layer, this is the DB backstop.
   if exists (
     select 1 from jsonb_each(p_detail) e
-    where e.key ~* '(sk_(live|test)_|sbp_|sb_(secret|publishable)_|AKIA[0-9A-Z]|ghp_|xox[baprs]-|AIza[0-9A-Za-z_-]{30})'
-       or (jsonb_typeof(e.value) = 'string' and (e.value #>> '{}') ~* '(sk_(live|test)_[A-Za-z0-9]|sbp_[A-Za-z0-9]{20}|sb_(secret|publishable)_|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30}|AIza[0-9A-Za-z_-]{30}|-----BEGIN [A-Z ]*PRIVATE KEY-----)')
+    where e.key ~* c_secret_re
+       or (jsonb_typeof(e.value) = 'string' and (e.value #>> '{}') ~* c_secret_re)
   ) then
     raise exception 'log_activity: detail appears to contain a secret';
   end if;
@@ -125,16 +129,16 @@ begin
     v_path, v_model,
     case when v_has_chunks then null else (v_emb)::public.vector end
   )
-  -- ATOMIC no-silent-overwrite: only update if the existing row is NOT a file-backed canonical entry.
-  -- On conflict with a memory/<file>.md row the WHERE is false → no update → v_id null → fail closed.
-  -- INSERT...ON CONFLICT locks the conflicting row, so this is concurrency-safe (no check-then-act race).
+  -- ATOMIC ownership policy: update ONLY an existing operator mcp/<slug> entry. A conflict with ANY other
+  -- origin (file-backed memory/<file>.md, NULL, or unknown) → WHERE false → no update → v_id null → fail
+  -- closed. INSERT...ON CONFLICT locks the conflicting row, so this is concurrency-safe (no check-then-act).
   on conflict (name) do update set
     kind = excluded.kind, title = excluded.title, body = excluded.body, links = excluded.links,
     source_path = excluded.source_path, embedding_model = excluded.embedding_model,
     embedding = excluded.embedding, updated_at = now()
-    where public.memory_entries.source_path !~ '^memory/'
+    where public.memory_entries.source_path ~ '^mcp/'
   returning id into v_id;
-  if v_id is null then raise exception 'remember_memory: name "%" collides with a file-backed canonical memory; choose a different name', v_name; end if;
+  if v_id is null then raise exception 'remember_memory: name "%" collides with an entry this tool does not own (not an mcp/ origin); choose a different name', v_name; end if;
 
   delete from public.memory_chunks where memory_entry_id = v_id;
   if v_has_chunks then
