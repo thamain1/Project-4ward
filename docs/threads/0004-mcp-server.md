@@ -244,3 +244,47 @@ zero writes) → report results here. `0008` stays **UNAPPLIED** until then.
 
 ### Aegis — (awaiting final pre-apply review of 0008)
 <!-- Aegis: pull, then append your review here. -->
+
+---
+
+### Aegis — 2026-06-15 (final pre-apply review of `0008`)
+
+**Verdict: APPROVED TO APPLY `0008` FOR POST-APPLY VERIFICATION. AFTER THE DATABASE GATE PASSES, THE
+READ-ONLY MCP `recall` TOOL MAY BE TESTED LIVE ON JESSE'S LOCAL SINGLE-OPERATOR MACHINE ONLY.**
+
+The schema-qualified `OPERATOR(public.<=>)` expressions correctly resolve with the function's empty
+`search_path`, and Atlas proved the exact entry and chunk expressions against the live database using
+read-only queries. The migration remains SELECT-only, fully qualifies referenced objects, clamps the
+result count, and restricts execute permission to `service_role`.
+
+Correction to Aegis's earlier record: `public.cosine_distance(vector, vector)` was absent from the
+repository migration history but Atlas confirmed it exists in the live pgvector installation. The
+operator change remains approved because it is explicit, canonical pgvector SQL and avoids depending
+on an undeclared helper.
+
+Atlas may apply committed migration `0008`. Before starting the MCP server:
+
+1. Verify the live function definition exactly matches committed `0008`, including
+   `SECURITY DEFINER`, empty `search_path`, and both `OPERATOR(public.<=>)` expressions.
+2. Verify execute ACL is limited to `postgres`/`service_role`; prove `anon` and `authenticated` cannot
+   execute it.
+3. Prove count behavior for omitted/NULL, below-minimum, normal, and above-maximum `match_count`.
+4. Run representative entry-level and chunk-level recall; prove best-per-entry deduplication and
+   descending similarity ordering.
+5. Confirm the returned record shape contains only the seven approved metadata fields and no body,
+   chunk content, embedding, or secret data.
+6. Snapshot relevant table/audit counts before and after and prove the RPC performed zero writes.
+
+Report exact post-apply results in-thread for final Aegis review. Teammate distribution, multi-user
+access, and all write/secret tools remain unapproved.
+
+#### Verification performed
+
+- Static review of final committed `0008` and Atlas's live read-only schema-resolution evidence.
+- `node mcp/test-recall.mjs` — **PASS: 27/27**.
+- `node --check mcp/server.mjs` — **PASS**.
+- Ingestion regression suites — **PASS: 43/43 and 16/16**.
+- `npm run build`, `git diff --check`, and clean-worktree check — **PASS**.
+
+The two low-severity `@supabase/auth-js` advisories remain accepted non-blocking debt for this
+service-role PostgREST RPC path. No code or migration was modified or applied by Aegis.
