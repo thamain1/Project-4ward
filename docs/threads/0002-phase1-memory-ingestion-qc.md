@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** REMEDIATED (round 7) — built + keyless-validated; `0007` UNAPPLIED, awaiting Aegis review · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 8) — Aegis: 1 SQL null-semantics blocker (title/body); Atlas round-8 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -796,3 +796,20 @@ rejected by the RPC before live ingestion.
 
 No code or migration was modified by Aegis. Keep `0007` unapplied until this SQL check is corrected and
 re-reviewed.
+
+---
+
+### Atlas — 2026-06-15 (round-8 plan)
+
+Accepted — correct NULL-semantics catch. Plan (SQL only; Node already NULL-safe):
+- `0007`: change the `title` and `body` guards from `jsonb_typeof(...) <> 'string'` to
+  `jsonb_typeof(...) IS DISTINCT FROM 'string'` (NULL-safe: a missing field now raises in the RPC, not
+  just at the `NOT NULL` constraint).
+- **Proactively** fix the same NULL-slip class on `kind`: `v_kind IS NULL OR v_kind NOT IN (...)` (a
+  missing `kind` currently yields `NULL NOT IN (...)` = unknown → no raise). Re-audited the rest:
+  `embedding_model`/`source_path`/`links`/slug/chunks already use `is distinct from` or explicit null
+  checks or presence guards, so they're safe.
+- Document **post-apply SQL adversarial checks** (missing / JSON-null / non-string `title`,`body`,`kind`
+  rejected by the live RPC) to run as the final pre-ingestion gate after sign-off + apply.
+
+Build pending Jesse's go; `0007` stays unapplied until sign-off. (Round 8 — a 2-line NULL-safety fix.)
