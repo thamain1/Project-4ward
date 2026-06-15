@@ -42,3 +42,64 @@ removed from the read path.
 
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your review here. -->
+
+---
+
+### Aegis — 2026-06-15 (recall slice QC)
+
+**Verdict: NOT APPROVED TO APPLY `0008` OR RUN THE MCP SERVER LIVE YET.** The read-first sequencing and
+the current service-role-only RPC are acceptable for a strictly local, single-operator interim
+deployment, but the slice is missing required release controls and contains a future authorization
+design error.
+
+#### Blocking findings
+
+1. **The documented Phase-2 RLS model is incorrect.** `recall_memory` is `SECURITY DEFINER`; when owned
+   by a privileged role, it bypasses caller RLS. Merely granting this function to `authenticated` and
+   calling it with a user JWT will not make its reads RLS-aware. Before applying `0008`, correct the
+   migration comments/design docs and lock the Phase-2 direction: replace it with a
+   `SECURITY INVOKER` path backed by correct RLS policies, or perform explicit authorization/filtering
+   inside a carefully reviewed definer function. Do not distribute the interim service-role-backed
+   server to teammates.
+2. **The isolated MCP package is not reproducibly installable.** `mcp/package.json` uses floating
+   caret ranges and has no committed `mcp/package-lock.json`; the root lockfile does not contain
+   `@modelcontextprotocol/sdk`. Pin exact versions and commit an MCP-local lockfile after checking the
+   resolved versions against the project's 14-day package rule.
+3. **Tool arguments need strict, bounded validation.** Do not coerce arbitrary `query` values with
+   `String(...)` or arbitrary `k` values with `parseInt(...)`. Require a non-empty string with an
+   explicit maximum length, reject unexpected/malformed types, and require an integer `k` in the
+   supported range. This bounds Gemini cost and prevents misleading calls such as `"[object Object]"`.
+4. **The interactive Gemini request can hang indefinitely.** Add a per-request timeout/abort while
+   retaining bounded retries. A maximum attempt count does not bound a stalled `fetch`.
+5. **No recall-path tests exist.** Add deterministic keyless tests for strict arguments; embedding
+   request model/task/dimensions; finite, non-zero, normalized 768-vector handling; retryable network /
+   `429` / `5xx` behavior; fail-fast `4xx`; timeout; exact RPC name/arguments; RPC errors; empty results;
+   and formatted provenance/freshness output. Keep stdout protocol-clean.
+
+#### Design answers
+
+- Interim service-role read is acceptable only on Jesse's local single-operator machine, with the key
+  never distributed. A scoped/per-user path is required before teammate access.
+- The current RPC's empty `search_path`, fully qualified objects, read-only SQL, clamped result count,
+  and service-role-only execute ACL are appropriate for that interim scope.
+- Returning `name`, `title`, `kind`, `source_path`, similarity, freshness, and match provenance is
+  acceptable for the interim operator. Reassess metadata visibility before multi-user access.
+- Confirmed sequencing: read tools first; every write and secret tool remains a separate gated unit.
+
+After fixes, request re-review while `0008` remains unapplied. The post-apply gate must verify the live
+definition and ACL, reject unauthorized execution, prove count clamping, run representative
+entry/chunk recall, confirm no body/secret fields are returned, and confirm the RPC creates no writes.
+
+#### Verification performed
+
+- Static review of `0008`, the MCP server, dependency manifest, and design/operating docs.
+- Confirmed the MCP-local lockfile and recall-path tests are absent.
+- `node --check mcp/server.mjs` — **PASS**.
+- Ingestion regression suites — **PASS: 43/43 and 16/16**.
+- `npm run build` and `git diff --check` — **PASS**.
+
+Non-blocking scale note: the current union/dedupe query computes similarity across the corpus rather
+than using an index-friendly nearest-neighbor ordering. It is acceptable at the current corpus size,
+but benchmark and redesign before substantial growth.
+
+No code or migration was modified or applied by Aegis.
