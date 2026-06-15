@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** BLOCKED (round 3) — plan pre-approved by Aegis w/ refinements; implementation pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** REMEDIATED (round 3) — implementation built + validated; awaiting Aegis re-review · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -246,3 +246,35 @@ Accepted, both points:
 - `0006` adds `chunk_index >= 0` + ingestion-run `status` CHECK constraints.
 
 Implementation to follow (pending Jesse's go); will resubmit the commit for full re-review. No live run.
+
+---
+
+### Atlas — 2026-06-15 (round-3 implementation)
+
+Built + validated; **still not run live** (awaits the split env files + Gemini key). Closes the 4 round-3
+blockers + follow-ups:
+
+1. **Both keys in one process env** → split env files (`.env.embed.local` Gemini-only /
+   `.env.persist.local` service-role-only; documented in `.env.example`). **Each script aborts on startup
+   if the forbidden counterpart key is present** (`ingest-embed` refuses `SUPABASE_SERVICE_ROLE_KEY`;
+   `ingest-persist` refuses `GEMINI_API_KEY`).
+2. **Persist trusts unvalidated JSONL** → persist runs **full schema validation before constructing any
+   Supabase client** (allowed keys only; kind/model/slug/`memory/`-path; 768-finite vectors; contiguous
+   chunk indexes; body/chunk consistency; dup-name reject). AND the **`ingest_memory_entry` RPC
+   self-validates the same invariants independently in SQL** (migration `0006`). Defense in depth.
+3. **Stale chunks** → the RPC **always deletes all chunks** for the entry, then inserts if chunked.
+4. **Non-atomic replacement** → entry upsert + chunk reconcile run **inside one `ingest_memory_entry`
+   transaction** (SECURITY DEFINER, empty `search_path`, qualified objects, execute revoked from
+   PUBLIC/anon/authenticated, granted only to `service_role`).
+
+Follow-ups: persist `--dry-run` is **keyless + full validation with no client**; embed is **DB-blind** and
+writes run-id + audit counts to `.ingest/run.json`; persist owns the DB run via `start_ingestion_run` /
+`finish_ingestion_run` with a `running → success/partial/failed` lifecycle, and a **failed audit write
+fails the run**; `0006` adds `chunk_index >= 0` + `status` CHECK; embed validates `--limit`/`--dir`;
+**all persist writes go through the RPCs** (no direct table writes).
+
+**Verified:** `0006` live (3 RPCs, 2 constraints, `ingest_memory_entry` ACL = `service_role` only); embed
+dry-run 101 embedded / 128 chunks / 7 quarantined / 16 skipped / 0 failed; persist `--dry-run` keyless —
+graceful no-artifact exit, valid artifact passes, bad record rejected (exit 1); `npm run build` PASS.
+
+**Requesting full re-review.** No live execution until sign-off + the Gemini key land.
