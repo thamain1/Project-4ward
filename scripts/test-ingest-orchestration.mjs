@@ -1,7 +1,9 @@
-// Project 4ward — KEYLESS orchestration tests for runPersist (Aegis 0002 round-4 test-gap + round-5).
-// Uses a mock rpc that records call order/payloads. Run: node scripts/test-ingest-orchestration.mjs
+// Project 4ward — KEYLESS orchestration tests for runPersist (Aegis 0002 round-4/5/6).
+// Mock rpc records call order + full payloads; tests assert EXACT deep-equality of every RPC call across
+// success and failure paths. Run: node scripts/test-ingest-orchestration.mjs
 
 import { runPersist } from './lib/ingest-run.mjs'
+import { stripRunId } from './lib/ingest-validate.mjs'
 
 const RUN = 'r1'
 const MODEL = 'gemini-embedding-001'
@@ -16,55 +18,66 @@ function mockRpc(handlers) {
   fn.calls = calls
   return fn
 }
+function deepEq(a, b) {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  const ka = Object.keys(a), kb = Object.keys(b)
+  return ka.length === kb.length && ka.every((k) => deepEq(a[k], b[k]))
+}
 
 let pass = 0, fail = 0
 const ok = (l) => { console.log(`  ok    ${l}`); pass++ }
 const bad = (l, m) => { console.error(`  FAIL  ${l}${m ? ' — ' + m : ''}`); fail++ }
 const assert = (l, c, m) => (c ? ok(l) : bad(l, m))
+const eqCall = (l, call, name, args) => assert(l, call && call.name === name && deepEq(call.args, args), call ? `got ${call.name} ${JSON.stringify(call.args)}` : 'no call')
 
-console.log('[orch-test] keyless orchestration')
+console.log('[orch-test] keyless orchestration (exact payloads)')
 
-// 1. happy path: order + payloads
+// 1. happy path — exact deep-equality of every call, in order
 {
   const rpc = mockRpc({ start_ingestion_run: { data: 'db1', error: null }, ingest_memory_entry: { data: null, error: null }, finish_ingestion_run: { data: null, error: null } })
   const r = await runPersist({ records: records2, runMeta: meta(0), rpc, log: quiet })
   assert('happy: status success + finalized', r.status === 'success' && r.finalized)
-  assert('happy: call order', rpc.calls.map((c) => c.name).join(',') === 'start_ingestion_run,ingest_memory_entry,ingest_memory_entry,finish_ingestion_run')
-  assert('happy: start payload (p_kind=memory, embed_run_id)', rpc.calls[0].args.p_kind === 'memory' && rpc.calls[0].args.p_embed_run_id === RUN)
-  assert('happy: ingest payload has run_id stripped', !('run_id' in rpc.calls[1].args.payload))
+  assert('happy: exactly 4 calls', rpc.calls.length === 4)
+  eqCall('happy: call0 start exact', rpc.calls[0], 'start_ingestion_run', { p_kind: 'memory', p_embed_run_id: RUN, p_embed_counts: meta(0).embed_counts })
+  eqCall('happy: call1 ingest(a) exact', rpc.calls[1], 'ingest_memory_entry', { payload: stripRunId(rec('a')) })
+  eqCall('happy: call2 ingest(b) exact', rpc.calls[2], 'ingest_memory_entry', { payload: stripRunId(rec('b')) })
+  eqCall('happy: call3 finish exact', rpc.calls[3], 'finish_ingestion_run', { p_id: 'db1', p_status: 'success', p_counts: { persisted: 2, failed: 0 } })
 }
-// 2. start fails -> no ingest, throws
+// 2. start fails -> throws, NO ingest, NO finish
 {
   const rpc = mockRpc({ start_ingestion_run: { data: null, error: { message: 'boom' } } })
   let threw = false; try { await runPersist({ records: records2, runMeta: meta(0), rpc, log: quiet }) } catch { threw = true }
   assert('start-fail: throws', threw)
-  assert('start-fail: NO ingest_memory_entry called', !rpc.calls.some((c) => c.name === 'ingest_memory_entry'))
+  assert('start-fail: only start called', rpc.calls.length === 1 && rpc.calls[0].name === 'start_ingestion_run')
 }
-// 3. all entries fail -> failed
+// 3. all entries fail -> finish failed, exact counts
 {
   const rpc = mockRpc({ start_ingestion_run: { data: 'db', error: null }, ingest_memory_entry: { data: null, error: { message: 'x' } }, finish_ingestion_run: { data: null, error: null } })
   const r = await runPersist({ records: records2, runMeta: meta(0), rpc, log: quiet })
   assert('all-fail: status failed', r.status === 'failed')
+  eqCall('all-fail: finish exact', rpc.calls.at(-1), 'finish_ingestion_run', { p_id: 'db', p_status: 'failed', p_counts: { persisted: 0, failed: 2 } })
 }
-// 4. embed failure + all persist -> partial (not success)
+// 4. embed failure + all persist -> partial, exact counts
 {
   const rpc = mockRpc({ start_ingestion_run: { data: 'db', error: null }, ingest_memory_entry: { data: null, error: null }, finish_ingestion_run: { data: null, error: null } })
   const r = await runPersist({ records: records2, runMeta: meta(1), rpc, log: quiet })
   assert('embed-failure: status partial', r.status === 'partial')
+  eqCall('embed-failure: finish exact', rpc.calls.at(-1), 'finish_ingestion_run', { p_id: 'db', p_status: 'partial', p_counts: { persisted: 2, failed: 0 } })
 }
-// 5. finalize fails -> not finalized, no false success
+// 5. finalize fails -> finalized false, no false success (finish still attempted with success)
 {
   const rpc = mockRpc({ start_ingestion_run: { data: 'db', error: null }, ingest_memory_entry: { data: null, error: null }, finish_ingestion_run: { data: null, error: { message: 'fin' } } })
   const r = await runPersist({ records: records2, runMeta: meta(0), rpc, log: quiet })
-  assert('finalize-fail: finalized=false', r.finalized === false && r.finalizeError === 'fin')
+  assert('finalize-fail: finalized=false + error surfaced', r.finalized === false && r.finalizeError === 'fin')
+  eqCall('finalize-fail: finish exact', rpc.calls.at(-1), 'finish_ingestion_run', { p_id: 'db', p_status: 'success', p_counts: { persisted: 2, failed: 0 } })
 }
-// 6. fatal mid-run -> best-effort finalize 'failed' + rethrow original
+// 6. fatal mid-run -> best-effort finalize failed (exact) + rethrow
 {
-  let finArgs = null
-  const rpc = mockRpc({ start_ingestion_run: { data: 'db', error: null }, ingest_memory_entry: () => { throw new Error('fatal') }, finish_ingestion_run: (a) => { finArgs = a; return { data: null, error: null } } })
+  const rpc = mockRpc({ start_ingestion_run: { data: 'db', error: null }, ingest_memory_entry: () => { throw new Error('fatal') }, finish_ingestion_run: { data: null, error: null } })
   let err = null; try { await runPersist({ records: records2, runMeta: meta(0), rpc, log: quiet }) } catch (e) { err = e }
   assert('fatal: rethrows original error', err && err.message === 'fatal')
-  assert('fatal: best-effort finalized as failed', finArgs && finArgs.p_status === 'failed')
+  eqCall('fatal: finish exact', rpc.calls.at(-1), 'finish_ingestion_run', { p_id: 'db', p_status: 'failed', p_counts: { persisted: 0, failed: 0, fatal: 'fatal' } })
 }
 
 console.log(`[orch-test] pass=${pass} fail=${fail}`)

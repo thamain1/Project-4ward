@@ -2,7 +2,7 @@
 // Exercises the exact shared logic the persist phase runs (scripts/lib/ingest-validate.mjs). No DB, no
 // keys. Run: node scripts/test-ingest-validation.mjs   (Aegis 0002 round-3-impl #5)
 
-import { validateRunMeta, validateRecord, reconcileCounts, decideStatus } from './lib/ingest-validate.mjs'
+import { validateRunMeta, validateRecord, reconcileCounts, decideStatus, MAX_COUNT } from './lib/ingest-validate.mjs'
 
 const RUN = 'r1'
 const MODEL = 'gemini-embedding-001'
@@ -42,6 +42,10 @@ throws('run meta bad kind', () => validateRunMeta({ ...meta(), kind: 'x' }))
 throws('run meta bad count', () => { const m = meta(); m.embed_counts.accepted = -1; validateRunMeta(m) })
 throws('run meta unexpected embed_counts key', () => { const m = meta(); m.embed_counts.extra = 1; validateRunMeta(m) })
 throws('run meta fractional count', () => { const m = meta(); m.embed_counts.accepted = 1.5; validateRunMeta(m) })
+accepts('run meta count == MAX_COUNT', () => { const m = meta(); m.embed_counts.accepted = MAX_COUNT; validateRunMeta(m) })
+throws('run meta count > MAX_COUNT', () => { const m = meta(); m.embed_counts.accepted = MAX_COUNT + 1; validateRunMeta(m) })
+throws('run meta unsafe 1e100 count', () => { const m = meta(); m.embed_counts.accepted = 1e100; validateRunMeta(m) })
+throws('chunk_index fractional', () => validateRecord({ ...base(), embedding: null, chunks: [{ chunk_index: 0.5, content: 'c', embedding: unit, embedding_model: MODEL }] }, 0, RUN))
 
 throws('reconcile bad accepted', () => reconcileCounts([base()], { ...meta().embed_counts, accepted: 2 }))
 throws('reconcile bad chunk_rows', () => reconcileCounts([base()], { ...meta().embed_counts, chunk_rows: 5 }))

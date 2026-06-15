@@ -22,12 +22,14 @@ begin
                 where k not in ('accepted','quarantined','skipped','failed','embedded_vectors','chunk_rows')) then
     raise exception 'embed_counts must have exactly the six allowed keys';
   end if;
+  -- nonnegative integers within the shared MAX_COUNT ceiling (1_000_000); matches Node MAX_COUNT.
   if exists (select 1 from jsonb_each(p_embed_counts) e
              where jsonb_typeof(e.value) <> 'number'
                 or e.value::text ~ '[.eE]'                       -- reject fractions / exponent forms
                 or e.value::numeric < 0
-                or e.value::numeric <> floor(e.value::numeric)) then
-    raise exception 'embed_counts values must be nonnegative integers';
+                or e.value::numeric <> floor(e.value::numeric)
+                or e.value::numeric > 1000000) then
+    raise exception 'embed_counts values must be nonnegative integers <= 1000000';
   end if;
   insert into public.ingestion_runs (kind, status, counts, embed_run_id)
     values (p_kind, 'running', p_embed_counts, p_embed_run_id)
@@ -76,6 +78,11 @@ begin
       if not (v_chunk ? 'chunk_index' and v_chunk ? 'content' and v_chunk ? 'embedding' and v_chunk ? 'embedding_model') then raise exception 'chunk missing a required key'; end if;
       if exists (select 1 from jsonb_object_keys(v_chunk) k where k not in ('chunk_index','content','embedding','embedding_model')) then raise exception 'unexpected key in chunk'; end if;
       if jsonb_typeof(v_chunk->'chunk_index') <> 'number' then raise exception 'chunk_index must be a number'; end if;
+      -- exact nonnegative integer within range BEFORE the ::int cast (reject fractional/exponent/negative/out-of-range)
+      if (v_chunk->'chunk_index')::text ~ '[.eE]'
+         or (v_chunk->>'chunk_index')::numeric < 0
+         or (v_chunk->>'chunk_index')::numeric <> floor((v_chunk->>'chunk_index')::numeric)
+         or (v_chunk->>'chunk_index')::numeric > 1000000 then raise exception 'chunk_index must be a nonnegative integer <= 1000000'; end if;
       if jsonb_typeof(v_chunk->'content') <> 'string' or v_chunk->>'content' = '' then raise exception 'chunk content must be a non-empty string'; end if;
       if jsonb_typeof(v_chunk->'embedding') <> 'string' then raise exception 'chunk embedding must be a non-null string'; end if;
       if jsonb_typeof(v_chunk->'embedding_model') <> 'string' or (v_chunk->>'embedding_model') <> 'gemini-embedding-001' then raise exception 'bad chunk embedding_model'; end if;

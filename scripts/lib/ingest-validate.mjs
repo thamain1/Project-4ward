@@ -11,6 +11,9 @@ export const CHUNK_KEYS = new Set(['chunk_index', 'content', 'embedding', 'embed
 const PATH_RE = /^memory\/[A-Za-z0-9._-]+\.md$/   // strict; no traversal (no "/", "..")
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
 const NORM_TOL = 1e-3
+// One portable count/index ceiling enforced IDENTICALLY in Node and SQL (Aegis round-5 #2). Far above the
+// real corpus (~150 entries), far under JS Number.MAX_SAFE_INTEGER; rejects unsafe values like 1e100.
+export const MAX_COUNT = 1_000_000
 
 // Identity rule — MUST match the embed phase and the SQL function.
 export const slugify = (f) => f.replace(/\.md$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -35,7 +38,7 @@ export function validateRunMeta(meta) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) throw new Error('run.json: missing embed_counts')
   const COUNT_KEYS = ['accepted', 'quarantined', 'skipped', 'failed', 'embedded_vectors', 'chunk_rows']
   for (const k of Object.keys(c)) if (!COUNT_KEYS.includes(k)) throw new Error(`run.json: unexpected embed_counts key "${k}"`)
-  for (const k of COUNT_KEYS) if (!Number.isInteger(c[k]) || c[k] < 0) throw new Error(`run.json: bad count "${k}"`)
+  for (const k of COUNT_KEYS) if (!Number.isInteger(c[k]) || c[k] < 0 || c[k] > MAX_COUNT) throw new Error(`run.json: bad count "${k}" (must be integer in [0, ${MAX_COUNT}])`)
   return meta
 }
 
@@ -59,6 +62,7 @@ export function validateRecord(rec, i, runId) {
     rec.chunks.forEach((c, j) => {
       if (typeof c !== 'object' || c === null) throw new Error(`${w} chunk ${j}: not an object`)
       for (const k of Object.keys(c)) if (!CHUNK_KEYS.has(k)) throw new Error(`${w} chunk ${j}: unexpected key "${k}"`)
+      if (!Number.isInteger(c.chunk_index) || c.chunk_index < 0 || c.chunk_index > MAX_COUNT) throw new Error(`${w} chunk ${j}: chunk_index must be an integer in [0, ${MAX_COUNT}]`)
       if (c.chunk_index !== j) throw new Error(`${w}: non-contiguous chunk_index (expected ${j})`)
       if (!c.content) throw new Error(`${w} chunk ${j}: empty content`)
       if (c.embedding_model !== MODEL) throw new Error(`${w} chunk ${j}: bad embedding_model`)

@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** BLOCKED (round 6) — Aegis: 2 validation blockers + test-precision gap on round-5; Atlas round-6 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** REMEDIATED (round 6) — built + keyless-validated; `0007` UNAPPLIED, awaiting Aegis review · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -665,3 +665,29 @@ Accepted, both blockers + the test gap. Plan (one shared bound, enforced identic
    failure.
 
 Build pending Jesse's go; `0007` stays unapplied until sign-off.
+
+---
+
+### Atlas — 2026-06-15 (round-6 implementation — `0007` UNAPPLIED)
+
+Built + keyless-validated; `0007` **not applied**. Closes both round-5 blockers + the test-precision gap:
+
+1. **Exact-integer `chunk_index`** — `0007` rejects fractional / exponent / negative / out-of-range
+   **before** the `::int` cast; Node mirrors it with `Number.isInteger` + `[0, MAX_COUNT]`.
+2. **One shared bound** — `MAX_COUNT = 1_000_000` enforced **identically** in Node (`validateRunMeta`
+   counts + `chunk_index`) and SQL (`start_ingestion_run` counts + `chunk_index`). Rejects `1e100`.
+3. **Exact-payload orchestration tests** — deep-equality of **every** RPC call: `start_ingestion_run`
+   (full `p_embed_counts`), each `ingest_memory_entry` (full stripped record), `finish_ingestion_run`
+   (`p_id`/`p_status`/`p_counts`) — across success and all failure paths (start-fail, all-fail,
+   embed-failure, finalize-fail, fatal), asserting order and no false success.
+
+**Verified (keyless, no DB writes):**
+- `test-ingest-validation.mjs` — **35/0** (incl. `MAX_COUNT` boundary, `1e100` reject, fractional `chunk_index`).
+- `test-ingest-orchestration.mjs` — **16/0** (exact deep-equality, every path).
+- embed `--dry-run` 101/129/41/7/16/0; persist `--dry-run` valid artifact passes; `npm run build` PASS.
+
+Live SQL adversarial verification (fractional/negative/exponent/out-of-range index + count bound) runs
+after sign-off + apply, as the final pre-ingestion gate; the Node layer mirrors them and is covered above.
+
+**Requesting review of `0007` (unapplied) + scripts.** Apply only after sign-off; a live run additionally
+needs the split env files + the Gemini key.
