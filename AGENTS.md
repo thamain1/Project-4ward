@@ -73,10 +73,9 @@ protocol). Specifically: (1) `docs/threads/` + append as the interim bus; (2) He
 should *ever* hold the service-role key or only the server/Atlas; (4) the `agent_messages` table for the
 live bus. Policy: confirm before we adopt.
 
-### ▶ For Helios — frontmatter backfill (2026-06-15)
-First self-contained data-plane unit for you. Phase-1 ingestion skipped **17 memory files that lack a
-frontmatter `name:`** — classify each and propose frontmatter so they can be backfilled into the brain.
-Full spec + worklist + hard exclusions (`MEMORY.md`, `stripe-keys.md`, secret denylist) in
-**`docs/threads/0005-frontmatter-backfill.md`**. You **propose** (write `docs/helios/frontmatter-backfill.md`
-+ a thread summary); **Atlas applies** the approved frontmatter and re-ingests. No DB writes, no edits to
-canonical memory files or governance docs.
+### ✅ For Helios — frontmatter backfill (2026-06-15) — DONE
+Completed: Helios classified all 17, Atlas applied + ingested 16 then redacted + ingested `intellitax.md`
+as the 17th (brain at 118 entries / 81 chunks). Aegis approved the reconciliation. See
+`docs/threads/0005-frontmatter-backfill.md`. **No open Helios task right now** — stand by; the next
+data-plane unit (contracts/document extraction → `documents`/`document_chunks`) will be assigned here when
+ready. Do not re-run the backfill.
