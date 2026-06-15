@@ -1,4 +1,4 @@
-// Project 4ward — keyless tests for the remember write slice. Run: node test-remember.mjs
+// Mnemosyne — keyless tests for the remember write slice. Run: node test-remember.mjs
 // No network, no DB, no keys: embedDoc/rpc/fetch are mocked. Mirrors test-recall.mjs discipline.
 import {
   validateRememberArgs, scanSecret, chunkBody, extractLinks, buildRecord, runRemember,

@@ -1,7 +1,7 @@
-# Project 4ward — engineering context (shared brain for the build itself)
+# Mnemosyne — engineering context (shared brain for the build itself)
 
 > This file is the **in-repo source of truth** for anyone (human or AI agent) working on
-> Project 4ward. This is a multi-developer build — engineering context lives here, not in any
+> Mnemosyne. This is a multi-developer build — engineering context lives here, not in any
 > one person's local memory. Read `docs/VISION.md` first for the why and the architecture.
 
 ## What this is
@@ -15,7 +15,7 @@ authorized teammate connect and work on demand.
 - Vite + React + TypeScript (strict), Tailwind CSS
 - Supabase (Postgres + pgvector + Auth + RLS + Storage + Realtime + Edge Functions)
 - Cloudflare Pages (hosting)
-- A "4ward-brain" **MCP server** (Phase 1) exposing the brain to each member's Claude Code
+- A "mnemosyne" **MCP server** (Phase 1) exposing the brain to each member's Claude Code
 
 ## Build & verify
 - Dev: `npm run dev`

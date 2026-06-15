@@ -1,4 +1,4 @@
-// Project 4ward — keyless tests for the get_secret read slice. Run: node test-getsecret.mjs
+// Mnemosyne — keyless tests for the get_secret read slice. Run: node test-getsecret.mjs
 // No network/DB/keys: rpc mocked. Mirrors the other slices' discipline.
 import { validateGetSecretArgs, runGetSecret } from './lib/getsecret-core.mjs'
 

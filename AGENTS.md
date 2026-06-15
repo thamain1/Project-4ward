@@ -1,4 +1,4 @@
-# AGENTS.md — Project 4ward
+# AGENTS.md — Mnemosyne
 
 Entry point for AI agents working on this repo.
 

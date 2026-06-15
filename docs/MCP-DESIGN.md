@@ -1,4 +1,4 @@
-# 4ward-brain MCP server — design
+# mnemosyne MCP server — design
 
 The MCP server is the **live interface to the shared brain** for CLI-equipped teammates (the web
 dashboard is the parallel interface for everyone else, Phase 2). It turns the brain from "rows in

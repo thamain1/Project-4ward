@@ -1,4 +1,4 @@
-// Project 4ward — shared ingestion validation (keyless, no DB, no fs).
+// Mnemosyne — shared ingestion validation (keyless, no DB, no fs).
 // Single source of truth used by ingest-persist.mjs AND test-ingest-validation.mjs, so the adversarial
 // tests exercise exactly the logic that runs in production. Mirrors the SQL self-validation in
 // migration 0007's ingest_memory_entry (defense in depth).

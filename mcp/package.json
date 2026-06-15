@@ -1,10 +1,10 @@
 {
-  "name": "fourward-brain-mcp",
+  "name": "mnemosyne-mcp",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "4ward-brain MCP server — semantic recall over the shared brain (read path).",
-  "bin": { "fourward-brain-mcp": "server.mjs" },
+  "description": "mnemosyne MCP server — semantic recall over the shared brain (read path).",
+  "bin": { "mnemosyne-mcp": "server.mjs" },
   "scripts": { "start": "node server.mjs" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

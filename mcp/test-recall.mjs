@@ -1,4 +1,4 @@
-// Project 4ward — KEYLESS recall-path tests (Aegis recall #5). No network, no DB, no keys.
+// Mnemosyne — KEYLESS recall-path tests (Aegis recall #5). No network, no DB, no keys.
 // Run: node mcp/test-recall.mjs
 
 import { validateArgs, makeEmbedQuery, toVecLiteral, formatResults, runRecall, DIMS } from './lib/recall-core.mjs'

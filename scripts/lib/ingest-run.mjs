@@ -1,4 +1,4 @@
-// Project 4ward — persist orchestration (injectable rpc, so it's testable keyless).
+// Mnemosyne — persist orchestration (injectable rpc, so it's testable keyless).
 // `rpc(fnName, args)` is supabase.rpc-compatible: resolves to { data, error }.
 // Guarantees: no ingest_memory_entry runs if start_ingestion_run fails; status is embed-failure-aware
 // (success only if all persisted AND zero embed failures); an unexpected mid-run throw best-effort

@@ -1,4 +1,4 @@
-// Project 4ward — 4ward-brain recall core (pure/injectable, so it's testable keyless).
+// Mnemosyne — mnemosyne recall core (pure/injectable, so it's testable keyless).
 // Shared by server.mjs (real fetch + supabase.rpc) and test-recall.mjs (mocks). No stdout writes.
 
 export const MODEL = 'gemini-embedding-001'

@@ -1,4 +1,4 @@
-// Project 4ward — Phase 1 ingestion, EMBED phase (data-plane; DATABASE-BLIND).
+// Mnemosyne — Phase 1 ingestion, EMBED phase (data-plane; DATABASE-BLIND).
 // Holds ONLY the Gemini key; refuses to start if the service-role key is present. Scans for secrets +
 // quarantines, parses + chunks, embeds via gemini-embedding-001 @ 768 (x-goog-api-key header, NORMALIZED),
 // and writes a run-bound artifact:

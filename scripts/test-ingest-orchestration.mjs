@@ -1,4 +1,4 @@
-// Project 4ward — KEYLESS orchestration tests for runPersist (Aegis 0002 round-4/5/6).
+// Mnemosyne — KEYLESS orchestration tests for runPersist (Aegis 0002 round-4/5/6).
 // Mock rpc records call order + full payloads; tests assert EXACT deep-equality of every RPC call across
 // success and failure paths. Run: node scripts/test-ingest-orchestration.mjs
 

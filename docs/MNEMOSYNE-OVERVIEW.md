@@ -1,4 +1,4 @@
-# Project 4ward — Team Overview & Architecture
+# Mnemosyne — Team Overview & Architecture
 
 *The shared "second brain" for 4ward Motion Solutions.* This doc is for the whole team — what we're
 building, why, how it works, and where it's going. (Diagrams render on GitHub; ASCII versions included
@@ -11,7 +11,7 @@ so they read anywhere.)
 Today, the company's institutional knowledge — what we're building, for whom, deal terms, credentials,
 the *why* behind decisions — lives in one person's local files and head. **That's a single point of
 failure:** if that person is unavailable, the team inherits a pile of repos with no map, and partners
-can't connect because they don't have access. **Project 4ward moves that brain into a durable,
+can't connect because they don't have access. **Mnemosyne moves that brain into a durable,
 access-controlled, shared system** so the company survives the loss of any individual and every
 teammate can recall and contribute on demand — a full-scale **development + sales + maintenance
 factory**.
@@ -32,7 +32,7 @@ factory**.
               ┌───────────────┘                │                     └───────────────┐
               │                                │                                     │
    ┌────────────────────┐          ┌────────────────────────┐          ┌────────────────────────┐
-   │  4ward-brain MCP    │          │   Web dashboard         │          │   Ingestion pipeline    │
+   │  mnemosyne MCP    │          │   Web dashboard         │          │   Ingestion pipeline    │
    │  server             │          │   (browser, zero-install)│          │   (knowledge → brain)   │
    │  → each teammate's  │          │   → every teammate,      │          │   embed → persist       │
    │    Claude Code      │          │     incl. non-technical  │          │   (split credentials)   │
@@ -50,7 +50,7 @@ Supabase brain. Knowledge gets *in* through the ingestion pipeline.
 
 ## 3. The three AI agents
 
-Project 4ward is built and operated by a coordinated trio — each with a name and a lane:
+Mnemosyne is built and operated by a coordinated trio — each with a name and a lane:
 
 | Agent | Identity | Role |
 |---|---|---|
@@ -103,7 +103,7 @@ files were quarantined out.*
 ```mermaid
 sequenceDiagram
     participant U as Teammate (Claude Code)
-    participant M as 4ward-brain MCP server
+    participant M as mnemosyne MCP server
     participant G as Helios / Gemini (embeddings)
     participant B as Supabase brain
     U->>M: recall("what did we promise Spencer on pricing?")

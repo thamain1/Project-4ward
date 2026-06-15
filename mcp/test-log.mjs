@@ -1,4 +1,4 @@
-// Project 4ward — keyless tests for the log_update append slice. Run: node test-log.mjs
+// Mnemosyne — keyless tests for the log_update append slice. Run: node test-log.mjs
 // No network/DB/keys: rpc is mocked. Mirrors test-remember.mjs discipline.
 import { validateLogArgs, scanObjectSecrets, runLogUpdate, MAX_DETAIL_KEYS, MAX_DETAIL_STR } from './lib/log-core.mjs'
 

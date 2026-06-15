@@ -1,4 +1,4 @@
-// Project 4ward — 4ward-brain log_update core (pure/injectable, testable keyless). No stdout writes.
+// Mnemosyne — mnemosyne log_update core (pure/injectable, testable keyless). No stdout writes.
 // Appends a who-did-what row to activity_log via the hardened, service-role-only log_activity RPC (0009).
 // actorId = server-configured ACTIVE operator team_member (fail closed). Standalone audit tool; domain
 // writes that REQUIRE audit (e.g. remember) use their own transactional RPC instead.

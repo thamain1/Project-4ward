@@ -1,4 +1,4 @@
-// Project 4ward — 4ward-brain get_secret core (pure/injectable, testable keyless). No stdout writes.
+// Mnemosyne — mnemosyne get_secret core (pure/injectable, testable keyless). No stdout writes.
 // Reads a decrypted secret VALUE via the hardened, service-role-only get_secret_operator RPC (migration
 // 0010), which enforces sensitivity authorization against the configured operator actor and audits the
 // read (secret.read) atomically. This tool is the on-demand credential-sharing feature.

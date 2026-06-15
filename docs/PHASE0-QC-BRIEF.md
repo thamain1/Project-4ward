@@ -96,7 +96,7 @@ before Phase 1 ingestion.**
 
 5. **Secrets are currently plaintext.** `encrypted_value` is plaintext despite its name. Do not
    ingest secrets until a real backend is implemented. Recommendation: use an external business
-   secrets manager as the canonical store and keep references in Project 4ward, retrieving values
+   secrets manager as the canonical store and keep references in Mnemosyne, retrieving values
    through a server-side audited bridge.
 
 6. **The engineering instructions contradict the locked access model.** `CLAUDE.md` says sensitivity

@@ -1,4 +1,4 @@
-# 4ward-brain MCP server
+# mnemosyne MCP server
 
 Exposes the shared 4ward brain to any teammate's Claude Code (or other MCP client) as live tools, so you
 recall/update institutional memory on demand instead of reading local files. **First slice: `recall`
@@ -24,7 +24,7 @@ node --env-file=.env.local server.mjs
 ## Add to Claude Code
 `.mcp.json` (project) or `claude mcp add`:
 ```json
-{ "mcpServers": { "4ward-brain": { "command": "node",
+{ "mcpServers": { "mnemosyne": { "command": "node",
   "args": ["--env-file=mcp/.env.local", "mcp/server.mjs"] } } }
 ```
 

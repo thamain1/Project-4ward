@@ -1,4 +1,4 @@
-// Project 4ward — adversarial, KEYLESS validation tests for the ingestion pipeline.
+// Mnemosyne — adversarial, KEYLESS validation tests for the ingestion pipeline.
 // Exercises the exact shared logic the persist phase runs (scripts/lib/ingest-validate.mjs). No DB, no
 // keys. Run: node scripts/test-ingest-validation.mjs   (Aegis 0002 round-3-impl #5)
 

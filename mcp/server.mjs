@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Project 4ward — "4ward-brain" MCP server (read path). Thin wiring over lib/recall-core.mjs.
+// Mnemosyne — "mnemosyne" MCP server (read path). Thin wiring over lib/recall-core.mjs.
 // Tool: recall(query, k) — strict args → embed query (gemini-embedding-001 RETRIEVAL_QUERY, 768,
 // normalized, per-request timeout + bounded retries) → read-only recall_memory RPC → top-k with
 // provenance + freshness.
@@ -105,7 +105,7 @@ const HANDLERS = {
   get_secret: (args) => runGetSecret(args, { rpc, actorId: OPERATOR_ID }),
 }
 
-const server = new Server({ name: '4ward-brain', version: '0.1.0' }, { capabilities: { tools: {} } })
+const server = new Server({ name: 'mnemosyne', version: '0.1.0' }, { capabilities: { tools: {} } })
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [RECALL_TOOL, REMEMBER_TOOL, LOG_UPDATE_TOOL, GET_SECRET_TOOL] }))
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const handler = HANDLERS[req.params.name]
@@ -120,4 +120,4 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
-console.error('[4ward-brain] MCP server connected — tools: recall, remember, log_update, get_secret')
+console.error('[mnemosyne] MCP server connected — tools: recall, remember, log_update, get_secret')

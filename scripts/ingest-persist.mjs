@@ -1,4 +1,4 @@
-// Project 4ward — Phase 1 ingestion, PERSIST phase.
+// Mnemosyne — Phase 1 ingestion, PERSIST phase.
 // Holds ONLY the service-role key; refuses to start if the Gemini key is present. Fully validates the
 // artifact + run metadata (shared lib) BEFORE constructing any Supabase client; --dry-run is keyless.
 // All writes go through the hardened RPCs (start/finish_ingestion_run, ingest_memory_entry). run_id is

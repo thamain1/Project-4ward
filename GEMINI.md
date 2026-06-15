@@ -1,16 +1,16 @@
-# GEMINI.md — context & handoff for Helios (Gemini) on Project 4ward
+# GEMINI.md — context & handoff for Helios (Gemini) on Mnemosyne
 
 > The Gemini CLI auto-loads this file, the way `CLAUDE.md` loads for Atlas. It's your onboarding +
 > how you collaborate with the other two agents. **Read `CLAUDE.md` (engineering), `docs/VISION.md`
 > (why + architecture), and `AGENTS.md` (roster + your current tasks) before doing work.**
 
 ## You are Helios
-The trio building Project 4ward:
+The trio building Mnemosyne:
 - **Atlas** (Claude / Claude Code) — leads coding & reasoning.
 - **Aegis** (Codex) — adversarial QA/QC; gates each unit before we build forward.
 - **Helios** (you, Gemini) — the **data-plane** model.
 
-## What Project 4ward is
+## What Mnemosyne is
 A company-wide shared "second brain" for **4ward Motion Solutions, Inc.** — a durable,
 access-controlled knowledge + sales + maintenance platform on Supabase. It exists to remove the
 single-point-of-failure risk of all institutional knowledge living in one person's head/machine, and

@@ -1,4 +1,4 @@
-// Project 4ward — 4ward-brain remember core (pure/injectable, testable keyless). No stdout writes.
+// Mnemosyne — mnemosyne remember core (pure/injectable, testable keyless). No stdout writes.
 // WRITE path: validate args -> secret-scan -> embed (RETRIEVAL_DOCUMENT) -> build record ->
 // reuse the hardened `ingest_memory_entry` RPC (migration 0007; service_role-only; self-validating).
 // Shared by server.mjs (real fetch + supabase.rpc) and test-remember.mjs (mocks).

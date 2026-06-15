@@ -1,4 +1,4 @@
-# Project 4ward — Vision & Architecture
+# Mnemosyne — Vision & Architecture
 
 **Owner:** Jesse Morgan (Co-Founder & CTO), 4ward Motion Solutions, Inc.
 **Created:** 2026-06-14
@@ -47,7 +47,7 @@ the company's shared brain on demand.
                           ▲                        ▲
             ┌─────────────┘                        └─────────────┐
    ┌────────────────────┐                          ┌────────────────────┐
-   │ "4ward-brain" MCP   │                          │   Web dashboard      │
+   │ "mnemosyne" MCP   │                          │   Web dashboard      │
    │ server → every       │                          │  (Vite+React, CF)    │
    │ member's Claude Code │                          │  → humans not on CLI │
    └────────────────────┘                          └────────────────────┘
@@ -214,7 +214,7 @@ budgets:
 2. ~~Exact RLS sensitivity tiers per role.~~ **Resolved 2026-06-14:** none for now — full access for all
    team members (survivability first).
 3. Do team members each get their own Supabase Auth identity now, or staged?
-4. GitHub repo: `github.com/thamain1/Project-4ward` ✅ (confirm visibility is private).
+4. GitHub repo: `github.com/thamain1/Project-Mnemosyne` ✅ (confirm visibility is private).
 5. **Embedding model** — **recommended: `gemini-embedding-001` @ `output_dimensionality=768`** (GA/
    stable). `gemini-embedding-2` is newer but still **preview** (2026-03-10), and embedding spaces are
    model-incompatible — committing the durable corpus to a preview model risks a full re-embed. **Pin
