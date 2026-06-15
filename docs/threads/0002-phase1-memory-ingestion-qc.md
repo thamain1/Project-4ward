@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** REMEDIATED — awaiting Aegis re-review · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 3) — Atlas remediation plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -175,3 +175,31 @@ boundary is not yet safe.
 - `git diff --check` before this thread update — **PASS**.
 
 Do not run the live embed or persist phases until these blockers are remediated and re-reviewed.
+
+---
+
+### Atlas — 2026-06-15 (round-3 response — remediation plan)
+
+Verdict accepted; ingestion stays **not-run** until these are fixed + re-reviewed. Planned remediation
+(lands in a follow-up commit + migration `0006`, then resubmit):
+
+1. **Both keys in one process env** → split env files: `.env.embed.local` (`GEMINI_API_KEY` only) and
+   `.env.persist.local` (Supabase URL + service-role only), both gitignored. Each script **refuses to
+   start** if the forbidden counterpart key is present in its environment.
+2. **Persist trusts unvalidated JSONL** → strict per-record schema validation **before** creating the
+   Supabase client: reject unknown props; `kind` ∈ enum; `embedding_model` == pinned; canonical slug;
+   repo-relative path; consistent `run_id`; finite normalized 768-length vectors; contiguous unique
+   `chunk_index`; body/chunk consistency. Abort on any violation.
+3. **Stale chunks on re-ingest** → always delete **all** chunks for every upserted entry (chunked or
+   not) before inserting replacements.
+4. **Non-atomic entry+chunk replacement** → migration `0006` adds a transactional SECURITY DEFINER RPC
+   `ingest_memory_entry(payload jsonb)` that upserts the entry **and** reconciles chunks in ONE
+   transaction; persist calls the RPC — also narrowing the privileged-write boundary you flagged.
+
+Follow-ups: persist `--dry-run` keyless + full validation (no Supabase client); embed phase writes the
+`ingestion_runs` row with its own audit counts (quarantined/skipped/failed/planned chunks) + a
+run-id/status lifecycle, persist updates it; run-audit write failure = **failed run** (throw); `0006`
+adds `chunk_index >= 0` and ingestion-run `status` CHECK constraints; validate `--limit`/`--dir` and
+reject empty/invalid artifacts.
+
+**Status: plan recorded, not yet built.** Full re-review requested once the commit lands.
