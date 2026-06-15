@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js'
 import { makeEmbedQuery, runRecall, MAX_K, MAX_QUERY_LEN, DEFAULT_K } from './lib/recall-core.mjs'
 import { makeEmbedDoc, runRemember, MAX_TITLE_LEN, MAX_BODY_LEN } from './lib/remember-core.mjs'
 import { runLogUpdate, MAX_ACTION_LEN } from './lib/log-core.mjs'
+import { runGetSecret } from './lib/getsecret-core.mjs'
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
@@ -81,14 +82,31 @@ const LOG_UPDATE_TOOL = {
   },
 }
 
+// SECRET tool — interim LOCAL single-operator only. Reads a decrypted value via the audited,
+// sensitivity-gated get_secret_operator RPC (migration 0010). The value travels only in the tool result;
+// it is NEVER logged. Not for teammate distribution (per Aegis 0009).
+const GET_SECRET_TOOL = {
+  name: 'get_secret',
+  description: 'Retrieve a stored credential from the 4ward secrets vault by its id. Sensitivity-gated (admin/restricted require an admin operator) and audited. Returns the decrypted value to the local operator only.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      secret_id: { type: 'string', description: 'The secrets_vault row id (uuid) to retrieve.' },
+    },
+    required: ['secret_id'],
+  },
+}
+
 const HANDLERS = {
   recall: (args) => runRecall(args, { embedQuery, rpc }),
   remember: (args) => runRemember(args, { embedDoc, rpc, actorId: OPERATOR_ID }),
   log_update: (args) => runLogUpdate(args, { rpc, actorId: OPERATOR_ID }),
+  get_secret: (args) => runGetSecret(args, { rpc, actorId: OPERATOR_ID }),
 }
 
 const server = new Server({ name: '4ward-brain', version: '0.1.0' }, { capabilities: { tools: {} } })
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [RECALL_TOOL, REMEMBER_TOOL, LOG_UPDATE_TOOL] }))
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [RECALL_TOOL, REMEMBER_TOOL, LOG_UPDATE_TOOL, GET_SECRET_TOOL] }))
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const handler = HANDLERS[req.params.name]
   if (!handler) return { isError: true, content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }] }
@@ -102,4 +120,4 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
-console.error('[4ward-brain] MCP server connected — tools: recall, remember, log_update')
+console.error('[4ward-brain] MCP server connected — tools: recall, remember, log_update, get_secret')

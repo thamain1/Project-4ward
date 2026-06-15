@@ -13,7 +13,7 @@ Supabase" into recall/update tools any teammate's Claude Code can call.
 | `log_update(action, entity_type?, entity_id?, detail?)` | append | **built, in QC (thread `0008`/`0009`)** — hardened `log_activity` definer fn appends to `activity_log` (namespaced action, bounded flat detail + secret-scan, configured active operator actor); the audit primitive `remember` reuses |
 | `remember(title, body, kind, name?)` | **write** | **remediated, in QC (thread `0007`)** — secret-scan → embed (RETRIEVAL_DOCUMENT) → **atomic** `remember_memory` RPC (migration `0009`, upsert+audit in one txn); distinct provenance `mcp/<slug>` + no-overwrite collision policy + bounded fan-out (`MAX_CHUNKS`) |
 | `log_update(...)` | append | writes `activity_log` via a controlled definer fn |
-| `get_secret(id)` | **secret** | separate unit — the audited `get_secret()` RPC; strict review |
+| `get_secret(secret_id)` | **secret** | **built, in QC (thread `0010`)** — thin client over the audited, sensitivity-gated `get_secret_operator` RPC (migration `0010`); local-operator only; value never logged |
 
 Read tools ship first; **write/secret tools are separate units** with their own QC, because they cross
 the integrity/secret boundary.
