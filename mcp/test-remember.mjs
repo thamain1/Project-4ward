@@ -16,6 +16,7 @@ function throwsSync(fn, frag) {
 const vec768 = (fill = 1) => Array.from({ length: 768 }, () => fill)
 const validLiteral = '[' + vec768().map((x) => x / Math.sqrt(768)).join(',') + ']'
 const goodArgs = { title: 'OTH payments', body: 'Payments run on Supabase edge functions.', kind: 'project' }
+const ACTOR = '11111111-1111-1111-1111-111111111111'
 
 // ---- validateRememberArgs ----
 check('rejects non-object', throwsSync(() => validateRememberArgs('x'), 'must be an object'))
@@ -36,6 +37,7 @@ check('rejects title that slugifies to empty w/o name', throwsSync(() => validat
 const v1 = validateRememberArgs(goodArgs)
 check('accepts good args, derives name from title', v1.name === 'oth-payments' && v1.kind === 'project' && v1.title === 'OTH payments')
 check('uses explicit name (slugified)', validateRememberArgs({ ...goodArgs, name: 'My Custom Name' }).name === 'my-custom-name')
+check('rejects over-long name', throwsSync(() => validateRememberArgs({ ...goodArgs, name: 'a'.repeat(90) }), 'exceeds'))
 check('all four KINDS accepted', [...KINDS].every((k) => validateRememberArgs({ title: 't', body: 'b', kind: k }).kind === k))
 
 // ---- scanSecret (incident 0006 prevention) ----
@@ -87,7 +89,7 @@ check('extractLinks unique', JSON.stringify(extractLinks('see [[a]] and [[b]] an
   const embedDoc = async () => validLiteral
   const single = await buildRecord({ title: 'T', body: 'short body [[onthehash]]', kind: 'project', name: 'oth-x' }, embedDoc)
   check('buildRecord single: embedding set, chunks empty', single.embedding === validLiteral && single.chunks.length === 0)
-  check('buildRecord single: source_path memory/<name>.md', single.source_path === 'memory/oth-x.md')
+  check('buildRecord single: operator provenance mcp/<name>', single.source_path === 'mcp/oth-x')
   check('buildRecord single: links extracted', JSON.stringify(single.links) === JSON.stringify(['onthehash']))
   check('buildRecord single: embedding_model pinned', single.embedding_model === 'gemini-embedding-001')
 
@@ -100,31 +102,44 @@ check('extractLinks unique', JSON.stringify(extractLinks('see [[a]] and [[b]] an
 // ---- runRemember orchestration ----
 {
   const embedDoc = async () => validLiteral
-  // secret-bearing body refused BEFORE embed/rpc
+  const rpc0 = async () => ({ error: null })
+  // fail closed without a valid operator actor (Aegis 0008 #1)
+  check('runRemember fails closed without actorId', await throwsAsync(() => runRemember(goodArgs, { embedDoc, rpc: rpc0 }), 'operator actor'))
+  check('runRemember fails closed with non-uuid actorId', await throwsAsync(() => runRemember(goodArgs, { embedDoc, rpc: rpc0, actorId: 'nope' }), 'operator actor'))
+
+  // secret-bearing body refused BEFORE embed/rpc (valid actor so we reach the scan)
   let embedded = false, rpcCalled = false
   const embedSpy = async () => { embedded = true; return validLiteral }
   const rpcSpy = async () => { rpcCalled = true; return { error: null } }
   check('runRemember refuses secret-bearing content',
-    await throwsAsync(() => runRemember({ title: 'creds', body: 'sbp_' + 'a'.repeat(40), kind: 'project' }, { embedDoc: embedSpy, rpc: rpcSpy }), 'refused'))
+    await throwsAsync(() => runRemember({ title: 'creds', body: 'sbp_' + 'a'.repeat(40), kind: 'project' }, { embedDoc: embedSpy, rpc: rpcSpy, actorId: ACTOR }), 'refused'))
   check('runRemember does NOT embed or call rpc on secret', embedded === false && rpcCalled === false)
 
-  // happy path: calls ingest_memory_entry with correct payload shape
-  let payloadSeen, fnSeen
-  const rpc = async (fn, args) => { fnSeen = fn; payloadSeen = args.payload; return { error: null } }
-  const msg = await runRemember({ title: 'OTH payments', body: 'Payments via Supabase EFs [[onthehash]]', kind: 'project' }, { embedDoc, rpc })
-  check('runRemember calls ingest_memory_entry', fnSeen === 'ingest_memory_entry')
-  check('runRemember payload keys correct', JSON.stringify(Object.keys(payloadSeen).sort()) === JSON.stringify(['body', 'chunks', 'embedding', 'embedding_model', 'kind', 'links', 'name', 'source_path', 'title']))
-  check('runRemember payload name + source_path consistent', payloadSeen.name === 'oth-payments' && payloadSeen.source_path === 'memory/oth-payments.md')
+  // happy path: calls remember_memory with correct payload + actor + safe audit
+  let argsSeen, fnSeen
+  const rpc = async (fn, args) => { fnSeen = fn; argsSeen = args; return { error: null } }
+  const msg = await runRemember({ title: 'OTH payments', body: 'Payments via Supabase EFs [[onthehash]]', kind: 'project' }, { embedDoc, rpc, actorId: ACTOR })
+  check('runRemember calls remember_memory', fnSeen === 'remember_memory')
+  check('runRemember passes operator actor', argsSeen.p_actor === ACTOR)
+  check('runRemember payload keys correct', JSON.stringify(Object.keys(argsSeen.p_payload).sort()) === JSON.stringify(['body', 'chunks', 'embedding', 'embedding_model', 'kind', 'links', 'name', 'source_path', 'title']))
+  check('runRemember operator provenance mcp/<slug>', argsSeen.p_payload.name === 'oth-payments' && argsSeen.p_payload.source_path === 'mcp/oth-payments')
+  check('runRemember audit = safe metadata, no body', argsSeen.p_audit && argsSeen.p_audit.kind === 'project' && typeof argsSeen.p_audit.chunks === 'number' && !('body' in argsSeen.p_audit))
   check('runRemember success message', msg.includes('Remembered "OTH payments"') && msg.includes('oth-payments') && msg.includes('1 vector'))
 
   // rpc error surfaces
-  const rpcErr = async () => ({ error: { message: 'unique violation' } })
-  check('runRemember surfaces rpc error', await throwsAsync(() => runRemember(goodArgs, { embedDoc, rpc: rpcErr }), 'ingest_memory_entry error'))
+  const rpcErr = async () => ({ error: { message: 'collision' } })
+  check('runRemember surfaces rpc error', await throwsAsync(() => runRemember(goodArgs, { embedDoc, rpc: rpcErr, actorId: ACTOR }), 'remember_memory error'))
 
   // validation error short-circuits before embed
   let embedded2 = false
-  check('runRemember rejects bad args before embed', await throwsAsync(() => runRemember({ title: '', body: 'b', kind: 'project' }, { embedDoc: async () => { embedded2 = true; return validLiteral }, rpc }), 'title'))
+  check('runRemember rejects bad args before embed', await throwsAsync(() => runRemember({ title: '', body: 'b', kind: 'project' }, { embedDoc: async () => { embedded2 = true; return validLiteral }, rpc, actorId: ACTOR }), 'title'))
   check('runRemember no embed on invalid args', embedded2 === false)
+
+  // fan-out bound: oversized body rejected BEFORE any embed (Aegis 0007 #3)
+  let embedded3 = false
+  check('runRemember rejects oversized body (chunk cap) before embed',
+    await throwsAsync(() => runRemember({ title: 'big', body: 'z'.repeat(80000), kind: 'project' }, { embedDoc: async () => { embedded3 = true; return validLiteral }, rpc, actorId: ACTOR }), 'too large'))
+  check('runRemember no embed when over chunk cap', embedded3 === false)
 }
 
 console.log(`[remember-test] pass=${pass} fail=${fail}`)

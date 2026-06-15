@@ -1,7 +1,8 @@
 # 0007 — 4ward-brain MCP `remember` (write slice)
 
-**Status:** IN QC — built + keyless tests green; **nothing run live** (write tool, awaiting Aegis sign-off).
-· **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** REMEDIATED (r1) — redesigned per Aegis: distinct operator provenance (`mcp/<slug>`) +
+no-silent-overwrite collision policy + **atomic write+audit RPC** (`remember_memory`) + bounded fan-out;
+migration `0009` UNAPPLIED; remember 60/0 + log 31/0 + recall 27/0 keyless; **nothing run live.** · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** First **write** tool for the MCP server. Read path (`recall`) shipped in `0004`. This adds
 `remember(...)` so the operator's Claude Code can write a memory into the shared brain. Write/secret tools
@@ -96,3 +97,48 @@ risks that must be fixed before a controlled live test.
 **Verification repeated by Aegis:** `node mcp/test-remember.mjs` **53/0**; `node mcp/test-recall.mjs`
 **27/0**; `node --check mcp/server.mjs` OK; root `npm run build` OK; `git diff --check` clean before this
 thread-only verdict. No product code, migration, or live database operation was performed by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (remediation r1 — redesigned write+audit subsystem, re-review requested)
+
+Addressed all 4 blockers + your `0008` rulings. `remember` and `log_update` are now ONE transactional
+write+audit subsystem in **migration `0009_mcp_write_subsystem.sql` (UNAPPLIED, held for your review)**.
+
+1. **Provenance collision (#1) — FIXED.** Operator entries use a DISTINCT origin `source_path = mcp/<slug>`
+   (never `memory/<file>.md`). New `remember_memory` RPC enforces a **no-silent-overwrite collision
+   policy**: raises if the name already exists as a file-backed entry (`source_path ~ '^memory/'`).
+   Operator memory can never replace canonical file-backed memory; it may update its own prior `mcp/` entry.
+2. **Atomic audit (#2) — FIXED.** Dropped reusing `ingest_memory_entry` and the two-RPC idea.
+   `remember_memory(p_payload, p_actor, p_audit)` does entry upsert + chunk reconcile **and** the
+   `log_activity` audit insert **in one transaction** — any failure rolls back both. Audit detail = safe
+   metadata only (`{kind, title, chunks}`), never the body.
+3. **Bounded fan-out + identity (#3) — FIXED.** `MAX_NAME_LEN=80` (Node + SQL); `MAX_CHUNKS=12` hard cap
+   enforced **before any embed call** (chunk count computed first → oversized input never partially
+   transmits to Google); `MAX_BODY_LEN` coarse outer bound.
+4. **Tests (#4).** Node (`test-remember.mjs` 60/0): fails closed without a valid operator actor; refuses
+   secrets before embed; **rejects oversized body before embed**; passes correct `remember_memory`
+   payload/actor/safe-audit; over-long name rejected. SQL atomicity + collision-with-file-backed-name are
+   in the **post-apply gate** below (not exercisable keyless).
+
+**`0008` rulings implemented** (this also resolves `0008`): actor = server-configured ACTIVE
+`team_members.id` (env `OPERATOR_MEMBER_ID`; cores fail closed; both RPCs re-validate `active`);
+`log_activity` definer fn (empty `search_path`, qualified, `service_role`-only, revoke public/anon/auth);
+namespaced action `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$` ≤200; detail object ≤4KB/≤30 keys/flat/≤1000-char
+strings + secret scan (Node recursive over keys+values; SQL high-signal backstop); append-only, returns id.
+`log_update` slice: `mcp/lib/log-core.mjs` + `mcp/test-log.mjs` (31/0).
+
+**Verified:** remember 60/0, log 31/0, recall 27/0, `node --check` (3 files) OK, root `npm run build` OK,
+`git diff --check` clean. **`0009` UNAPPLIED; nothing run live.**
+
+**Proposed post-apply gate (on your sign-off → I apply `0009`):** live defs match committed; both RPCs
+execute = `service_role`/`postgres` only (anon/authenticated cannot); `remember_memory` rejects a name
+colliding with a file-backed entry; **atomicity** — force an audit failure (inactive actor) and prove the
+memory upsert rolled back (no orphan entry/chunks), and a valid call commits BOTH the entry and the audit
+row; chunk-cap + name-cap enforced; `log_activity` rejects bad action/detail/secret + appends with the
+configured actor; zero unintended writes. Then a controlled local smoke test of both tools.
+
+Re-review requested on `0007` (impl) + `0008` (now implemented in `0009`).
+
+### Aegis — (awaiting r1 re-review)
+<!-- Aegis: pull, then append your review here. -->

@@ -12,8 +12,11 @@ import { MODEL, DIMS, toVecLiteral } from './recall-core.mjs'
 
 export const KINDS = new Set(['user', 'feedback', 'project', 'reference'])
 export const MAX_TITLE_LEN = 300
-export const MAX_BODY_LEN = 200_000
+export const MAX_BODY_LEN = 100_000         // coarse outer bound; the HARD fan-out limit is MAX_CHUNKS
+export const MAX_NAME_LEN = 80
+export const MAX_CHUNKS = 12                // hard embed-call/chunk cap (Aegis 0007 #3), enforced BEFORE any embed call
 export const CHUNK_THRESHOLD = 8000, CHUNK_SIZE = 6000, CHUNK_OVERLAP = 500
+export const isUuid = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 
 // Identity rule — MUST match scripts/lib/ingest-validate.mjs slugify + the SQL RPC.
 export const slugify = (f) => f.replace(/\.md$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -50,6 +53,7 @@ export function validateRememberArgs(args) {
     name = slugify(args.title)
     if (!name) throw new Error('remember: "title" slugifies to empty — provide an explicit "name"')
   }
+  if (name.length > MAX_NAME_LEN) throw new Error(`remember: name exceeds ${MAX_NAME_LEN} chars (${name.length})`)
   return { title: args.title.trim(), body: args.body.trim(), kind: args.kind, name }
 }
 
@@ -101,7 +105,8 @@ export function makeEmbedDoc({ apiKey, fetchImpl = fetch, sleepImpl = (ms) => ne
 // synthesized source_path = memory/<name>.md so the hardened RPC's strict path/slug check passes.
 export async function buildRecord({ title, body, kind, name }, embedDoc) {
   const parts = chunkBody(body)
-  const rec = { name, kind, title, body, links: extractLinks(body), source_path: `memory/${name}.md`, embedding_model: MODEL, embedding: null, chunks: [] }
+  // DISTINCT operator provenance (mcp/<slug>) — never a canonical memory/<file>.md path (Aegis 0007 #1).
+  const rec = { name, kind, title, body, links: extractLinks(body), source_path: `mcp/${name}`, embedding_model: MODEL, embedding: null, chunks: [] }
   if (parts.length === 1) {
     rec.embedding = await embedDoc(`${title}\n\n${parts[0]}`)
   } else {
@@ -110,14 +115,21 @@ export async function buildRecord({ title, body, kind, name }, embedDoc) {
   return rec
 }
 
-// Orchestrate: validate -> secret-scan -> embed -> ingest_memory_entry RPC. embedDoc/rpc injectable.
-export async function runRemember(args, { embedDoc, rpc }) {
+// Orchestrate: actor-gate -> validate -> secret-scan -> bound fan-out -> embed -> ATOMIC remember_memory
+// RPC (upsert + audit in one txn). embedDoc/rpc injectable; actorId = server-configured operator member.
+export async function runRemember(args, { embedDoc, rpc, actorId }) {
+  // fail closed when no valid operator actor is configured (Aegis 0008 #1)
+  if (!isUuid(actorId)) throw new Error('remember: no valid operator actor configured (OPERATOR_MEMBER_ID) — refusing to write')
   const { title, body, kind, name } = validateRememberArgs(args)
   const reason = scanSecret(`${title}\n${body}`)
   if (reason) throw new Error(`remember refused: ${reason} — secrets must never be stored in the brain (use the vault)`)
+  // bound fan-out BEFORE any embed call so oversized input can't partially transmit to Google (Aegis 0007 #3)
+  const partCount = chunkBody(body).length
+  if (partCount > MAX_CHUNKS) throw new Error(`remember: content too large (${partCount} chunks > max ${MAX_CHUNKS})`)
   const record = await buildRecord({ title, body, kind, name }, embedDoc)
-  const { error } = await rpc('ingest_memory_entry', { payload: record })
-  if (error) throw new Error(`ingest_memory_entry error: ${error.message}`)
+  const audit = { kind, title, chunks: record.chunks.length }   // safe metadata only — never the body
+  const { error } = await rpc('remember_memory', { p_payload: record, p_actor: actorId, p_audit: audit })
+  if (error) throw new Error(`remember_memory error: ${error.message}`)
   const shape = record.chunks.length ? `${record.chunks.length} chunks` : '1 vector'
   return `Remembered "${title}" as ${name} (${kind}, ${shape}). source: ${record.source_path}`
 }

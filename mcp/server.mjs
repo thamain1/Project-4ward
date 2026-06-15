@@ -15,6 +15,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { createClient } from '@supabase/supabase-js'
 import { makeEmbedQuery, runRecall, MAX_K, MAX_QUERY_LEN, DEFAULT_K } from './lib/recall-core.mjs'
 import { makeEmbedDoc, runRemember, MAX_TITLE_LEN, MAX_BODY_LEN } from './lib/remember-core.mjs'
+import { runLogUpdate, MAX_ACTION_LEN } from './lib/log-core.mjs'
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
@@ -26,6 +27,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSessi
 const embedQuery = makeEmbedQuery({ apiKey: GEMINI_KEY })
 const embedDoc = makeEmbedDoc({ apiKey: GEMINI_KEY })
 const rpc = (fn, args) => supabase.rpc(fn, args)
+// Operator identity for WRITE tools (remember/log_update): a server-configured ACTIVE team_members.id.
+// The write cores fail closed if it's absent/invalid. Not needed for the read-only recall path.
+const OPERATOR_ID = process.env.OPERATOR_MEMBER_ID
 
 const RECALL_TOOL = {
   name: 'recall',
@@ -60,13 +64,31 @@ const REMEMBER_TOOL = {
   },
 }
 
+// APPEND tool — writes activity_log via the hardened service-role-only log_activity RPC (0009).
+const LOG_UPDATE_TOOL = {
+  name: 'log_update',
+  description: 'Append a who-did-what entry to the 4ward activity log. action is a namespaced token (e.g. "work.note", "deal.update"); narrative + safe metadata go in detail. Append-only; refuses secrets.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      action: { type: 'string', maxLength: MAX_ACTION_LEN, description: 'Namespaced action, e.g. "work.note" (^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$).' },
+      entity_type: { type: 'string', description: 'Optional subject type (e.g. "project", "deal").' },
+      entity_id: { type: 'string', description: 'Optional subject uuid.' },
+      detail: { type: 'object', description: 'Optional flat JSON object of safe metadata (≤4KB, no nesting, no secrets).' },
+    },
+    required: ['action'],
+  },
+}
+
 const HANDLERS = {
   recall: (args) => runRecall(args, { embedQuery, rpc }),
-  remember: (args) => runRemember(args, { embedDoc, rpc }),
+  remember: (args) => runRemember(args, { embedDoc, rpc, actorId: OPERATOR_ID }),
+  log_update: (args) => runLogUpdate(args, { rpc, actorId: OPERATOR_ID }),
 }
 
 const server = new Server({ name: '4ward-brain', version: '0.1.0' }, { capabilities: { tools: {} } })
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [RECALL_TOOL, REMEMBER_TOOL] }))
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [RECALL_TOOL, REMEMBER_TOOL, LOG_UPDATE_TOOL] }))
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const handler = HANDLERS[req.params.name]
   if (!handler) return { isError: true, content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }] }
@@ -80,4 +102,4 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
-console.error('[4ward-brain] MCP server connected — tools: recall, remember')
+console.error('[4ward-brain] MCP server connected — tools: recall, remember, log_update')

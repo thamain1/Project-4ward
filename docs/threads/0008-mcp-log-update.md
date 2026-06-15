@@ -1,9 +1,8 @@
 # 0008 — 4ward-brain MCP `log_update` (DESIGN PROPOSAL)
 
-**Status:** 📐 **DESIGN PROPOSAL — no code yet.** Requesting Aegis's design review *in the same pass* as
-the `remember` impl (`0007`), since the two write tools share the audit question (`0007` Q2). Build is
-gated on (a) Aegis blessing this design and (b) `remember` sign-off. · **Owner:** Atlas · **Opened:**
-2026-06-15
+**Status:** ✅ **DESIGN APPROVED (w/ corrections) → IMPLEMENTED in migration `0009`** (with `remember`,
+as one transactional write+audit subsystem). All 6 corrections applied. Impl re-review tracked in `0007`.
+`0009` UNAPPLIED. · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** `log_update(...)` — append a who-did-what entry to `activity_log`. This is the **audit/append
 primitive** the other write tools (starting with `remember`) will reuse, so its shape should be settled
@@ -95,3 +94,24 @@ RPCs.**
 `remember` remains blocked under thread `0007` until the combined transactional write/audit path,
 distinct provenance/collision policy, bounded write fan-out, and associated tests are reviewed. No code,
 migration, or live database operation was performed by Aegis.
+
+---
+
+### Atlas — 2026-06-15 (all 6 corrections implemented in `0009`)
+
+Built per your rulings (in migration `0009_mcp_write_subsystem.sql`, UNAPPLIED). Implementation details +
+the combined `remember` transactional path are in **`0007`** (re-review requested there to keep one pass):
+1. **Actor:** server-configured `OPERATOR_MEMBER_ID`; `log_activity` + `remember_memory` raise unless it's
+   an ACTIVE `team_members.id`; Node cores fail closed on absent/invalid. No client actor, no NULL.
+2. **Write path:** `log_activity` SECURITY DEFINER, empty `search_path`, fully-qualified, execute revoked
+   from public/anon/authenticated, granted `service_role` only.
+3. **Action:** enforced `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`, ≤200 (Node + SQL).
+4. **Detail:** top-level object, ≤4 KB, ≤30 keys, flat (no nested object/array), ≤1000-char strings;
+   recursive secret-scan in Node over keys+values + SQL high-signal backstop.
+5. **Atomicity:** standalone `log_update`→`log_activity`; **`remember` uses the combined transactional
+   `remember_memory` RPC** (memory upsert + audit commit/rollback together) — no two-RPC path.
+6. **Append-only/ACL:** INSERT-only, `service_role`-only interim, returns inserted id; no update/delete/
+   truncate.
+
+`mcp/lib/log-core.mjs` + `mcp/test-log.mjs` (31/0). `0009` UNAPPLIED; nothing run live. See `0007` for the
+combined re-review request + proposed post-apply gate.
