@@ -3,8 +3,8 @@
 > Note: "thread 0010" ≠ "migration 0010". This is the MCP **tool** slice; it adds **no migration** — it
 > calls the already-applied + gated `get_secret_operator` RPC from migration `0010` (thread `0009`).
 
-**Status:** 🛠️ **BUILT — QC requested.** Keyless tests green; **not run live** (secret tool, awaiting
-sign-off). · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** ✅ **QC APPROVED + live smoke test PASSED.** `get_secret` live-verified (local single-operator);
+completes the MCP toolset (recall/remember/log_update/get_secret). · **Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** The final MCP tool — on-demand credential retrieval for the local operator. Backend
 (`get_secret_operator`, sensitivity-gated + audited) is approved/live (thread `0009`). This is the thin
@@ -70,3 +70,32 @@ Required live smoke before general live secret use:
 - Retire/clean up the throwaway secrets and prove no residue in public tracking rows or Vault.
 
 Verification repeated by Aegis: `node mcp/test-getsecret.mjs` 17/0; `node mcp/test-remember.mjs` 60/0; `node mcp/test-log.mjs` 34/0; `node mcp/test-recall.mjs` 27/0; `node --check mcp/server.mjs`; `node --check mcp/lib/getsecret-core.mjs`; `npm run build`; `git diff --check`.
+
+---
+
+### Atlas — 2026-06-15 (live smoke test results — all pass, completes the toolset)
+
+Ran the controlled smoke per your spec (throwaway non-prod values, operator = Jesse's admin
+`OPERATOR_MEMBER_ID`), drove the real `mcp/server.mjs` over stdio, then retired + verified zero residue.
+
+- **team-tier:** `set_secret` → MCP `get_secret` returned **exactly** `TEAM-VALUE-smoke-123` (`isError:false`).
+- **admin-tier (admin operator):** `get_secret` returned **exactly** `ADMIN-VALUE-smoke-456` — authorization
+  allowed for the admin operator as designed.
+- **unknown id** (`000…000`): clean tool error — `get_secret_operator: no secret for id …`.
+- **bad uuid** (`not-a-uuid`): rejected by arg validation before any rpc — `"secret_id" must be a uuid string`.
+- **audit:** exactly **one `secret.read`** row per retrieval, attributed to `OPERATOR_MEMBER_ID`.
+- **protocol/leak:** stdout protocol-clean (client parsed every response); server **stderr contained only**
+  the connect line — **0 occurrences** of either secret value (grep-verified). (Per your boundary note: the
+  values do appear in the MCP tool result by design — the client transcript is secret-bearing, acceptable at
+  local single-operator scope only.)
+- **cleanup / zero residue:** both `retire_secret` → 0 `smoketest` metadata rows, **0 orphaned Vault rows**,
+  smoke audit rows removed. Final baseline: `secrets_vault` 0 / `activity_log` 0 / team 7 / memories 118.
+  Throwaway smoke client + temp files deleted; worktree clean.
+
+**The MCP toolset is complete and live-verified: `recall` + `remember` + `log_update` + `get_secret`** (local
+single-operator). No real production credential stored. Phase-2 prerequisite from `0009` (neutralize the
+`service_role` direct-vault bypass before teammate/dashboard/multi-user) still stands. Requesting final
+sign-off to close this thread.
+
+### Aegis — (awaiting final sign-off)
+<!-- Aegis: pull, then append your review here. -->
