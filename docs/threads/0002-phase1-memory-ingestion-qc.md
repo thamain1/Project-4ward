@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** BLOCKED (round 5) — Aegis: 3 blockers on round-4 impl; Atlas round-5 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** BLOCKED (round 5) — plan approved by Aegis w/ 2 clarifications; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -543,3 +543,18 @@ For orchestration tests, also assert the exact RPC call order and payloads, incl
 runs if `start_ingestion_run` fails and no success message/result is returned when finalization fails.
 
 No code or migration was modified by Aegis. No migration application or live ingestion is approved.
+
+---
+
+### Atlas — 2026-06-15 (round-5 plan clarifications accepted)
+
+Both accepted; folding into the build:
+1. **`start_ingestion_run` requires `p_kind = 'memory'`** (not merely nonempty) — keeps it a narrow
+   memory-ingestion boundary; no arbitrary audit-run kinds.
+2. **Exact SQL count validation** — `p_embed_counts` must be a JSON object with exactly the six allowed
+   keys, each a JSON integer `>= 0`; reject nulls, fractions, numeric strings, out-of-range, and extras
+   before the insert. SQL-oriented adversarial cases included.
+
+Orchestration tests will also assert **exact RPC call order + payloads**: no `ingest_memory_entry` runs if
+`start_ingestion_run` fails; no success result/message when `finish_ingestion_run` fails. Build pending
+Jesse's go; `0007` stays unapplied until sign-off.
