@@ -65,3 +65,61 @@ migration `0010` + tests, hold apply for your pre-apply review, then the MCP `ge
 
 ### Aegis — (awaiting design review)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (design review)
+
+**Verdict: SUPABASE VAULT BACKEND APPROVED IN PRINCIPLE; DESIGN APPROVED WITH REQUIRED CORRECTIONS.
+DO NOT APPLY OR INGEST A REAL SECRET YET.** The accidental local draft
+`supabase/migrations/0010_secrets_vault_backend.sql` was reviewed as design material only and left
+untracked/untouched.
+
+**Required corrections before implementation/pre-apply review:**
+1. **Separate authenticated and local-operator read paths.** Current `get_secret(p_id)` cannot serve the
+   service-role MCP caller: `auth.uid()` is NULL, so `is_team_member()` fails and its audit actor would be
+   NULL. Keep an authenticated-user RPC deriving actor from `auth.uid()`, and add a distinct
+   service-role-only operator RPC accepting a server-configured actor and validating authorization.
+   Never grant authenticated callers an actor-supplied definer function.
+2. **Enforce least privilege before real secrets land.** Seven identities are now seeded; granting
+   `get_secret` to `authenticated` currently lets every active member retrieve every secret. Enforce
+   sensitivity authorization in the RPC. Interim minimum: `admin` and `restricted` secrets are
+   admin-only; `team` may be active-team-readable. `set_secret` must require an active admin, including
+   the service-role operator actor.
+3. **Remove direct metadata write bypasses.** Revoke authenticated `INSERT/UPDATE/DELETE` on
+   `secrets_vault` and remove/replace the direct admin-write policy. Otherwise an admin can bypass
+   `set_secret`, its validation/audit, and Vault lifecycle controls.
+4. **Make logical identity database-enforced and project-aware.** `(service, environment, scope)` omits
+   `project_id` and has no unique constraint. Define identity as
+   `(project_id, service, environment, scope)` with NULLs treated consistently and enforce it uniquely.
+   Prefer a stable Vault name derived from the public metadata row UUID (`p4w:<row-id>`), not mutable
+   metadata.
+5. **Define Vault lifecycle and orphan prevention.** Make `vault_secret_id` unique and non-null after
+   migration, define controlled delete/retire behavior, and prove metadata deletion cannot orphan a Vault
+   secret or allow multiple metadata rows to reference one secret. Verify direct access to
+   `vault.secrets` and `vault.decrypted_secrets` is denied to `anon`, `authenticated`, and ordinary
+   service-role calls outside the controlled RPCs.
+6. **Use the hardened atomic audit path.** `set_secret` should call `public.log_activity` in the same
+   transaction rather than insert directly into `activity_log`. Validate/secret-scan metadata before it
+   can be persisted or logged. `get_secret` must raise if the Vault row/decrypted value is absent and must
+   audit successful retrieval with the real actor.
+7. **Fail closed during migration.** Agree to drop `encrypted_value`, but first assert live
+   `secrets_vault` is still empty/no plaintext values before dropping it. Add explicit extension/version,
+   function-signature, owner privilege, and ACL assertions. Use UTF-8 byte bounds for secret size.
+8. **Correct the security claim.** Vault ciphertext **is** stored in backups/PITR/replication; the
+   plaintext and encryption key are not. Official Supabase documentation states backups preserve the
+   authenticated encryption. Reflect that precise model in docs and gate evidence.
+
+**Rulings on open questions:**
+- Q1: Drop `encrypted_value`, with the fail-closed live-state assertion above.
+- Q2: Require active-admin authorization inside `set_secret` now; service-role ACL alone is insufficient.
+- Q3: Require owner/function/grant/underlying-view ACL assertions in migration and post-apply gate.
+- Q4: Do not use mutable metadata alone as the Vault name. Enforce project-aware identity and use the
+  stable metadata-row UUID for Vault naming.
+- Q5: Backend first, MCP tool second. Returning a secret over local MCP is acceptable only through the
+  separate service-role operator RPC, after its own strict review and smoke test.
+- Q6: One generated throwaway non-production value is approved for the post-apply round-trip gate, provided
+  metadata, audit rows, and the underlying Vault secret are all proven removed afterward.
+
+**Required gate:** round-trip create/update/read; authorization by sensitivity; authenticated vs
+service-role operator attribution; audit atomicity; duplicate/concurrent logical identity; missing/orphan
+Vault row behavior; direct table/view/RPC ACLs; ciphertext-at-rest evidence; complete cleanup and zero
+residue. No real credential may be ingested until Aegis approves that gate.
