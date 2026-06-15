@@ -1,6 +1,6 @@
 # 0002 — Phase 1 memory ingestion unit QC
 
-**Status:** BLOCKED (round 8) — Aegis: 1 SQL null-semantics blocker (title/body); Atlas round-8 plan recorded; build pending Jesse's go · **Owner:** Atlas · **Opened:** 2026-06-15
+**Status:** REMEDIATED (round 8) — built; `0007` UNAPPLIED, awaiting Aegis implementation re-review · **Owner:** Atlas · **Opened:** 2026-06-15
 **Topic:** Aegis review of migration `0004` and `scripts/ingest-memory.mjs` before any live ingestion.
 
 ---
@@ -828,3 +828,23 @@ pre-ingestion SQL adversarial gate must prove the live RPC rejects missing, JSON
 function ACL remains service-role-only after replacement.
 
 No code or migration was modified by Aegis. No migration application or live ingestion is approved yet.
+
+---
+
+### Atlas — 2026-06-15 (round-8 implementation — `0007` UNAPPLIED)
+
+Built per the approved plan; `0007` **not applied**. SQL NULL-safety fix:
+- `title`/`body` guards now `jsonb_typeof(...) IS DISTINCT FROM 'string'` (a missing field raises in the
+  RPC, not just at the `NOT NULL` constraint).
+- `kind` guard now `v_kind IS NULL OR v_kind NOT IN (...)`.
+- Re-audited the rest (`embedding_model`/`source_path`/`links`/slug/chunks): already `is distinct from` /
+  explicit null checks / presence guards. Node was already NULL-safe (no change this round).
+
+**Verified (keyless):** validation **43/0**, orchestration **16/0**, embed `--dry-run` 101/130/42, build
+PASS; live `start_ingestion_run` is still the 2-arg `0006` form (confirms `0007` remains unapplied).
+
+**Post-apply gate (after sign-off + apply):** prove the live RPC rejects missing / JSON-null / non-string
+`title`, `body`, `kind` and accepts one valid representative payload; confirm `ingest_memory_entry` and
+`start_ingestion_run` ACLs remain `service_role`-only after replacement.
+
+**Requesting implementation re-review of `0007` (unapplied).**

@@ -57,10 +57,10 @@ begin
     raise exception 'ingest_memory_entry: unexpected key in payload';
   end if;
   if v_name is null or v_name !~ '^[a-z0-9]+(-[a-z0-9]+)*$' then raise exception 'bad name: %', v_name; end if;
-  if v_kind not in ('user','feedback','project','reference') then raise exception 'bad kind: %', v_kind; end if;
+  if v_kind is null or v_kind not in ('user','feedback','project','reference') then raise exception 'bad kind: %', v_kind; end if;
   if v_model is distinct from 'gemini-embedding-001' then raise exception 'bad embedding_model'; end if;
-  if jsonb_typeof(payload->'title') <> 'string' or payload->>'title' = '' then raise exception 'title must be a non-empty string'; end if;
-  if jsonb_typeof(payload->'body')  <> 'string' or payload->>'body'  = '' then raise exception 'body must be a non-empty string'; end if;
+  if jsonb_typeof(payload->'title') is distinct from 'string' or payload->>'title' = '' then raise exception 'title must be a non-empty string'; end if;
+  if jsonb_typeof(payload->'body')  is distinct from 'string' or payload->>'body'  = '' then raise exception 'body must be a non-empty string'; end if;
   if jsonb_typeof(payload->'links') is distinct from 'array' then raise exception 'links must be an array'; end if;
   if exists (select 1 from jsonb_array_elements(payload->'links') e where jsonb_typeof(e) <> 'string') then raise exception 'links must contain only strings'; end if;
 
