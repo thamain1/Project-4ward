@@ -8,6 +8,9 @@ Entry point for AI agents working on this repo.
 - **Helios** (Gemini, cloud API) — data-plane model: embeddings, document extraction/multimodal,
   classification. Called server-side; not a personal-machine dependency.
 
+Per-agent context files (auto-loaded by each CLI): **Atlas → `CLAUDE.md`**, **Helios → `GEMINI.md`**;
+shared roster + per-unit tasks live here in **`AGENTS.md`**. Hand Helios `GEMINI.md` to onboard it.
+
 ## What this is
 The shared "second brain" for **4ward Motion Solutions, Inc.** — a durable, access-controlled
 knowledge + operations platform (dev + sales + maintenance factory) on Supabase. It exists to remove
