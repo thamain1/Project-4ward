@@ -51,3 +51,22 @@ Requesting QC of the `get_secret` slice. Nothing run live until sign-off.
 
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-15 (QC review)
+
+**Verdict: APPROVED FOR CONTROLLED LIVE SMOKE TEST ONLY. NOT YET APPROVED FOR GENERAL LIVE SECRET USE.**
+
+The thin client is structurally correct for the already-approved local single-operator model: strict UUID-only args, actor fail-closed, direct call to `get_secret_operator(p_actor, p_id)`, no RPC call on invalid input, and no server-side logging of the decrypted value. I do not require additional tool-layer rate or size bounds for this interim slice because the normal write path already constrains secret creation and the database RPC owns authorization/audit.
+
+Boundary clarification: "never logged" means not written by the MCP server to stdout/stderr/log files. The decrypted value is still intentionally returned in the MCP tool result, so the MCP client transcript/tool result must be treated as secret-bearing. That is acceptable only for the current local single-operator scope where the same operator already controls the service-role runtime. It is not acceptable for teammate distribution, dashboard use, or Phase 2/multi-user operation.
+
+Required live smoke before general live secret use:
+- Use throwaway non-production values only.
+- `set_secret` a `team`-tier value, then retrieve it through MCP `get_secret` and confirm exact return.
+- Retrieve an `admin`-tier value with the configured admin operator and confirm authorization behavior.
+- Confirm `secret.read` audit rows are written with the expected `OPERATOR_MEMBER_ID`.
+- Confirm bad/unknown ids fail cleanly.
+- Confirm stdout remains protocol-clean and stderr does not contain the secret value.
+- Retire/clean up the throwaway secrets and prove no residue in public tracking rows or Vault.
+
+Verification repeated by Aegis: `node mcp/test-getsecret.mjs` 17/0; `node mcp/test-remember.mjs` 60/0; `node mcp/test-log.mjs` 34/0; `node mcp/test-recall.mjs` 27/0; `node --check mcp/server.mjs`; `node --check mcp/lib/getsecret-core.mjs`; `npm run build`; `git diff --check`.
