@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
-import { groupEntries } from '../lib/memoryGroups'
+import { groupEntries, tagValue, hasTag } from '../lib/memoryGroups'
 
 type Entry = {
   name: string
@@ -9,6 +9,7 @@ type Entry = {
   kind: string
   source_path: string | null
   updated_at: string
+  tags?: string[] | null
 }
 type Hit = Entry & { similarity: number; matched_via?: string }
 
@@ -35,6 +36,7 @@ export default function Memories() {
 
   const [kind, setKind] = useState<KindFilter>('all')
   const [filter, setFilter] = useState('')
+  const [reusableOnly, setReusableOnly] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
 
   // semantic search (explicit; server-side via /api/recall)
@@ -50,7 +52,7 @@ export default function Memories() {
   useEffect(() => {
     supabase
       .from('memory_entries')
-      .select('name, title, kind, source_path, updated_at')
+      .select('name, title, kind, source_path, updated_at, tags')
       .order('updated_at', { ascending: false })
       .then(({ data, error }) => {
         if (error) setErr(error.message)
@@ -64,10 +66,11 @@ export default function Memories() {
     const s = filter.trim().toLowerCase()
     return rows.filter((r) => {
       if (kind !== 'all' && r.kind !== kind) return false
+      if (reusableOnly && !(hasTag(r.tags, 'reusable') || hasTag(r.tags, 'code-snippet'))) return false
       if (s && !(r.name.toLowerCase().includes(s) || (r.title ?? '').toLowerCase().includes(s))) return false
       return true
     })
-  }, [rows, kind, filter])
+  }, [rows, kind, filter, reusableOnly])
 
   const groups = useMemo(() => groupEntries(browse), [browse])
 
@@ -106,6 +109,7 @@ export default function Memories() {
         className="text-left h-full flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-900/40 hover:bg-slate-900 hover:border-slate-700 transition p-3">
         <div className="flex items-center gap-2">
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${KIND_COLORS[r.kind] ?? 'bg-slate-700 text-slate-300'}`}>{r.kind}</span>
+          {hasTag(r.tags, 'code-snippet') && <span className="shrink-0 rounded bg-emerald-500/15 text-emerald-300 px-1.5 py-0.5 text-[10px]">snippet</span>}
           {'similarity' in r && (
             <span className="ml-auto shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-blue-300" title={(r as Hit).matched_via}>
               {((r as Hit).similarity * 100).toFixed(0)}%
@@ -113,7 +117,10 @@ export default function Memories() {
           )}
         </div>
         <span className="text-sm font-medium line-clamp-2">{r.title || r.name}</span>
-        <span className="mt-auto text-xs text-slate-500 truncate">{r.name} · {new Date(r.updated_at).toLocaleDateString()}</span>
+        <span className="mt-auto text-xs text-slate-500 truncate">
+          {tagValue(r.tags, 'repo:') ? <span className="text-slate-400">{tagValue(r.tags, 'repo:')}</span> : r.name}
+          {' · '}{new Date(r.updated_at).toLocaleDateString()}
+        </span>
       </button>
     )
   }
@@ -148,7 +155,7 @@ export default function Memories() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex gap-1">
               {KIND_TABS.map((t) => (
-                <button key={t.id} onClick={() => setKind(t.id)}
+                <button key={t.id} onClick={() => { setKind(t.id); if (t.id !== 'reference') setReusableOnly(false) }}
                   className={`px-2.5 py-1 rounded-md text-xs transition ${kind === t.id ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'}`}>
                   {t.label}
                 </button>
@@ -160,7 +167,13 @@ export default function Memories() {
         )}
 
         {kind === 'reference' && !inSearch && (
-          <p className="text-xs text-emerald-400/80">Reusable patterns &amp; references — building blocks to reuse across projects.</p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-emerald-400/80">Reusable patterns &amp; references — building blocks to reuse across projects.</p>
+            <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" checked={reusableOnly} onChange={(e) => setReusableOnly(e.target.checked)} className="accent-emerald-500" />
+              code library only
+            </label>
+          </div>
         )}
       </div>
 

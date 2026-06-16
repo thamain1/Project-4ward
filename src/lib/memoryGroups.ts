@@ -11,6 +11,12 @@ const ALIAS: Record<string, string> = {
   oth: 'onthehash',
   io: 'intellioptics',
   p2p: 'p2pnow',
+  '4ward': 'mnemosyne',
+  '4wardmotion': 'mnemosyne',
+  just: 'just-as-iam',
+  isb: 'intelliservice',
+  mes: 'intelliservice',
+  sb: 'intelliservice',
 }
 
 const TITLE_OVERRIDES: Record<string, string> = {
@@ -37,8 +43,8 @@ const TITLE_OVERRIDES: Record<string, string> = {
   supabase: 'Supabase',
   gemini: 'Gemini',
   buildregistry: 'Build Registry',
-  '4ward': 'Mnemosyne / 4ward',
-  '4wardmotion': 'Mnemosyne / 4ward',
+  mnemosyne: 'Mnemosyne / 4ward',
+  'just-as-iam': 'Just-As-I-Am',
 }
 
 /** Stable group key for an entry name (lowercase token). */
@@ -55,13 +61,24 @@ export function groupLabel(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1)
 }
 
+/** Read a single-valued tag by prefix, e.g. tagValue(tags,'repo:') -> 'thamain1/OnTheHash'. */
+export function tagValue(tags: string[] | null | undefined, prefix: string): string | undefined {
+  return (tags ?? []).find((t) => t.startsWith(prefix))?.slice(prefix.length)
+}
+export const hasTag = (tags: string[] | null | undefined, tag: string) => (tags ?? []).includes(tag)
+
+/** Grouping key for an entry: prefer the exact `project:`/`topic:` tag (B+.2), else the name heuristic. */
+export function entryGroupKey(e: { name: string; tags?: string[] | null }): string {
+  return tagValue(e.tags, 'project:') ?? tagValue(e.tags, 'topic:') ?? groupKey(e.name)
+}
+
 export type Grouped<T> = { key: string; label: string; items: T[] }
 
-/** Group entries by derived key, sorted by descending count then label. */
-export function groupEntries<T extends { name: string }>(entries: T[]): Grouped<T>[] {
+/** Group entries by key (tag-preferred), sorted by descending count then label. */
+export function groupEntries<T extends { name: string; tags?: string[] | null }>(entries: T[]): Grouped<T>[] {
   const map = new Map<string, T[]>()
   for (const e of entries) {
-    const k = groupKey(e.name)
+    const k = entryGroupKey(e)
     if (!map.has(k)) map.set(k, [])
     map.get(k)!.push(e)
   }
