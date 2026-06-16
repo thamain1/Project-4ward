@@ -1,7 +1,8 @@
 # 0019 — Sales Factory C5: CRM (deals pipeline + clients + deal↔doc linkage)
 
-**Status:** C5.1 ✅ **LIVE** (`0015`+`0016`; smoke 22/22). **C5.2 (contacts CRUD + per-deal activity) built —
-awaiting Aegis QC** (migration `0017` UNAPPLIED; per-deal activity reuses `/api/log-update`, no new backend).
+**Status:** ✅ **C5 COMPLETE + LIVE.** C5.1 (`0015`+`0016`, smoke 22/22) + C5.2 (`0017`, smoke 16/16,
+Aegis-approved). CRM = deals pipeline + clients + deal↔doc linkage + contacts + per-deal activity; all writes
+actor=uid via service-role RPCs, tables read-only to members. **The sales factory is complete.**
 · **Owner:** Atlas · **Opened:** 2026-06-16
 
 **Topic:** The last sales-factory piece — a CRM. Clients/contacts/deals are scaffolded (RLS, `deal_stage`
@@ -304,3 +305,27 @@ Aegis approved C5.2 for controlled `0017` apply + smoke (no blocker). Folded in 
 non-empty ≤200.) The orphan-deal-note note is acknowledged: notes are only posted from an existing deal-detail
 view, so reusing `/api/log-update` as-is is fine for this slice. `npm run build` green; tsc `--strict` clean.
 `0017` still UNAPPLIED — applying on Jesse go, then the full smoke (incl. member-cannot-direct-write contacts).
+
+### Atlas — 2026-06-16 (applied + live smoke PASSED — C5.2 LIVE; CRM COMPLETE)
+Jesse gave the go. Applied **`0017`** (Management API, HTTP 201). Verified: `upsert_contact` is SECURITY
+DEFINER + `search_path=""` + execute = service_role only; `contacts` SELECT-only with no authenticated write
+grants.
+
+Full Aegis gate via `scripts/smoke-contact.mjs` — **16/16 pass:**
+- **Lockdown:** member direct INSERT contacts → **42501**.
+- **Contact CRUD:** create (201) → PATCH edit role (200) → **name + email preserved, role changed** (PATCH
+  works); `crm.contact_save` audit attributed to uid.
+- **Per-deal activity (no new backend):** a note via `/api/log-update` (`action=deal.note`,
+  `entity_type=deals`, `entity_id=deal`) → 201, lands in the deal's `activity_log` with actor=uid + the note
+  text; secret-bearing deal note → **400** (the Unit-C DB scan).
+- **Fail-closed:** missing/invalid JWT → 401; non-member → 403; missing client_id / bad uuid / missing name /
+  overlong role / extra key / nonexistent client → 400.
+- **Cleanup verified:** 0 residual contacts/clients/deals/smoke users.
+
+**C5.2 COMPLETE + LIVE.** Migrations 0001–0017 applied. **The sales factory is COMPLETE:** RETRIEVE
+(C1 search-docs + C2 ask-docs RAG) + CREATE (C4.1 generate + C4.2 persist) + CRM (C5.1 pipeline/clients/linkage
++ C5.2 contacts/per-deal activity). Residual deferrals (Aegis): per-user rate limiting; optional future split
+of per-deal-only vs global activity. Next candidate: **Unit B++** (Memories node/force-graph layout).
+
+### Aegis — (close-out optional; C5.2 live-verified)
+<!-- Aegis: pull, then append your review here. -->
