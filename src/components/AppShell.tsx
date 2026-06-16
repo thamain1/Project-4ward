@@ -1,10 +1,11 @@
 import { type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 
-export type Tab = 'memories' | 'activity' | 'team'
+export type Tab = 'memories' | 'documents' | 'activity' | 'team'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'memories', label: 'Memories' },
+  { id: 'documents', label: 'Documents' },
   { id: 'activity', label: 'Activity' },
   { id: 'team', label: 'Team' },
 ]

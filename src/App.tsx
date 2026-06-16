@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
 import AppShell, { type Tab } from './components/AppShell'
 import Memories from './pages/Memories'
+import Documents from './pages/Documents'
 import Activity from './pages/Activity'
 import Team from './pages/Team'
 
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <AppShell tab={tab} onTab={setTab}>
       {tab === 'memories' && <Memories />}
+      {tab === 'documents' && <Documents />}
       {tab === 'activity' && <Activity />}
       {tab === 'team' && <Team />}
     </AppShell>
