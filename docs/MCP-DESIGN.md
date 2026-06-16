@@ -8,12 +8,18 @@ Supabase" into recall/update tools any teammate's Claude Code can call.
 | Tool | Privilege | Status |
 |---|---|---|
 | **`recall(query, k)`** | read-only | ✅ **shipped** — embeds query (RETRIEVAL_QUERY) → `recall_memory` RPC → top-k w/ provenance + freshness; `0008` applied, gate passed, live-verified |
-| `search_docs(query, k)` | read-only | next read slice (documents + chunks) |
+| `search_docs(query, k)` | read-only | sales-factory roadmap (documents + chunks); mirrors recall |
 | `list_active_work()` | read-only | reads `activity_log` / open `deals`/`projects` |
 | `log_update(action, entity_type?, entity_id?, detail?)` | append | **built, in QC (thread `0008`/`0009`)** — hardened `log_activity` definer fn appends to `activity_log` (namespaced action, bounded flat detail + secret-scan, configured active operator actor); the audit primitive `remember` reuses |
 | `remember(title, body, kind, name?)` | **write** | **remediated, in QC (thread `0007`)** — secret-scan → embed (RETRIEVAL_DOCUMENT) → **atomic** `remember_memory` RPC (migration `0009`, upsert+audit in one txn); distinct provenance `mcp/<slug>` + no-overwrite collision policy + bounded fan-out (`MAX_CHUNKS`) |
 | `log_update(...)` | append | writes `activity_log` via a controlled definer fn |
 | `get_secret(secret_id)` | **secret** | **built, in QC (thread `0010`)** — thin client over the audited, sensitivity-gated `get_secret_operator` RPC (migration `0010`); local-operator only; value never logged |
+
+> **Dashboard recall path (Unit B, thread `0012`):** the web dashboard can't call `recall_memory` directly
+> (service_role-only) or hold the Gemini key, so semantic search goes through a CF Pages Function
+> `functions/api/recall.ts` — JWT verify → active-member check → Gemini embed → `recall_memory` RPC. This
+> server-endpoint pattern (server-held Gemini + service-role; never in the browser) is the template the
+> sales-factory `search_docs` / Q&A / generation endpoints reuse.
 
 Read tools ship first; **write/secret tools are separate units** with their own QC, because they cross
 the integrity/secret boundary.

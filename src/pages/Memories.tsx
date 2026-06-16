@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../auth/AuthProvider'
 
 type Entry = {
   name: string
@@ -9,6 +10,8 @@ type Entry = {
   updated_at: string
 }
 
+type Hit = Entry & { similarity: number; matched_via?: string }
+
 const KIND_COLORS: Record<string, string> = {
   project: 'bg-blue-500/15 text-blue-300',
   reference: 'bg-emerald-500/15 text-emerald-300',
@@ -17,12 +20,22 @@ const KIND_COLORS: Record<string, string> = {
 }
 
 export default function Memories() {
+  const { session } = useAuth()
   const [rows, setRows] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [q, setQ] = useState('')
+
+  // quick text filter (client-side, as-you-type) over the loaded browse list
+  const [filter, setFilter] = useState('')
+
+  // semantic search (explicit; server-side via /api/recall)
+  const [sq, setSq] = useState('')
+  const [hits, setHits] = useState<Hit[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchErr, setSearchErr] = useState<string | null>(null)
+
   const [openName, setOpenName] = useState<string | null>(null)
-  const [body, setBody] = useState<string>('')
+  const [body, setBody] = useState('')
   const [bodyLoading, setBodyLoading] = useState(false)
 
   useEffect(() => {
@@ -38,12 +51,42 @@ export default function Memories() {
   }, [])
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase()
+    const s = filter.trim().toLowerCase()
     if (!s) return rows
-    return rows.filter(
-      (r) => r.name.toLowerCase().includes(s) || (r.title ?? '').toLowerCase().includes(s),
-    )
-  }, [rows, q])
+    return rows.filter((r) => r.name.toLowerCase().includes(s) || (r.title ?? '').toLowerCase().includes(s))
+  }, [rows, filter])
+
+  async function runSemanticSearch(e: FormEvent) {
+    e.preventDefault()
+    const q = sq.trim()
+    if (!q) { setHits(null); setSearchErr(null); return }
+    setSearching(true)
+    setSearchErr(null)
+    try {
+      const res = await fetch('/api/recall', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ query: q, k: 12 }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `search failed (${res.status})`)
+      setHits((data.results ?? []) as Hit[])
+    } catch (e: any) {
+      setSearchErr(e?.message ?? 'search failed')
+      setHits(null)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  function clearSearch() {
+    setSq('')
+    setHits(null)
+    setSearchErr(null)
+  }
 
   async function openEntry(name: string) {
     setOpenName(name)
@@ -54,28 +97,54 @@ export default function Memories() {
     setBodyLoading(false)
   }
 
+  const inSearch = hits !== null
+  const list: (Entry | Hit)[] = inSearch ? hits! : filtered
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Memories</h2>
-          <p className="text-xs text-slate-500">
-            {loading ? 'Loading…' : `${filtered.length} of ${rows.length}`} · text filter (semantic search coming
-            soon)
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Memories</h2>
+            <p className="text-xs text-slate-500">
+              {loading ? 'Loading…' : inSearch ? `${hits!.length} semantic matches` : `${filtered.length} of ${rows.length}`}
+              {inSearch ? ' · ranked by relevance' : ' · quick text filter'}
+            </p>
+          </div>
+          {!inSearch && (
+            <input
+              placeholder="Quick filter (name/title)…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-56 rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
         </div>
-        <input
-          placeholder="Filter by name or title…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="w-64 rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+
+        {/* semantic search bar */}
+        <form onSubmit={runSemanticSearch} className="flex items-center gap-2">
+          <input
+            placeholder="Semantic search — ask by meaning, e.g. “OnTheHash payment flow”…"
+            value={sq}
+            onChange={(e) => setSq(e.target.value)}
+            className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button type="submit" disabled={searching} className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 text-sm font-medium transition">
+            {searching ? 'Searching…' : 'Search'}
+          </button>
+          {inSearch && (
+            <button type="button" onClick={clearSearch} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-400 hover:text-slate-100">
+              Clear
+            </button>
+          )}
+        </form>
+        {searchErr && <p className="text-sm text-red-400">{searchErr}</p>}
       </div>
 
       {err && <p className="text-sm text-red-400">{err}</p>}
 
       <div className="divide-y divide-slate-800 rounded-lg border border-slate-800 overflow-hidden">
-        {filtered.map((r) => (
+        {list.map((r) => (
           <button
             key={r.name}
             onClick={() => openEntry(r.name)}
@@ -84,15 +153,22 @@ export default function Memories() {
             <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${KIND_COLORS[r.kind] ?? 'bg-slate-700 text-slate-300'}`}>
               {r.kind}
             </span>
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium truncate">{r.title || r.name}</span>
               <span className="block text-xs text-slate-500 truncate">
                 {r.name} · {r.source_path} · {new Date(r.updated_at).toLocaleDateString()}
               </span>
             </span>
+            {'similarity' in r && (
+              <span className="mt-0.5 shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-blue-300" title={(r as Hit).matched_via}>
+                {((r as Hit).similarity * 100).toFixed(0)}%
+              </span>
+            )}
           </button>
         ))}
-        {!loading && filtered.length === 0 && <p className="px-4 py-6 text-sm text-slate-500">No matches.</p>}
+        {!loading && list.length === 0 && (
+          <p className="px-4 py-6 text-sm text-slate-500">{inSearch ? 'No confident matches.' : 'No matches.'}</p>
+        )}
       </div>
 
       {openName && (
@@ -100,9 +176,7 @@ export default function Memories() {
           <div className="ml-auto h-full w-full max-w-xl bg-slate-900 border-l border-slate-800 shadow-2xl overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-semibold">{openName}</h3>
-              <button onClick={() => setOpenName(null)} className="text-slate-500 hover:text-slate-200 text-sm">
-                Close
-              </button>
+              <button onClick={() => setOpenName(null)} className="text-slate-500 hover:text-slate-200 text-sm">Close</button>
             </div>
             {bodyLoading ? (
               <p className="text-sm text-slate-500">Loading…</p>
