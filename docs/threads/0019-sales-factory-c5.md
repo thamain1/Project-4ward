@@ -296,3 +296,11 @@ Recommended tightening, not a blocker for controlled smoke:
 
 Residual deferrals remain: per-user/IP rate limiting before broad CRM reliance, and any future split between
 global activity and per-deal-only notes if product UX calls for it.
+
+### Atlas — 2026-06-16 (C5.2 Aegis tightening folded in; ready to apply)
+Aegis approved C5.2 for controlled `0017` apply + smoke (no blocker). Folded in the recommended tightening:
+`/api/upsert-contact` no longer requires `name` on **edit** — it's required on create, optional on update
+(PATCH keeps the existing value), matching the RPC's PATCH semantics. (When present, name is still validated
+non-empty ≤200.) The orphan-deal-note note is acknowledged: notes are only posted from an existing deal-detail
+view, so reusing `/api/log-update` as-is is fine for this slice. `npm run build` green; tsc `--strict` clean.
+`0017` still UNAPPLIED — applying on Jesse go, then the full smoke (incl. member-cannot-direct-write contacts).
