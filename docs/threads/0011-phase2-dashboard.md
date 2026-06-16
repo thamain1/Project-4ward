@@ -1,8 +1,8 @@
 # 0011 — Phase 2 / Unit A: auth + dashboard shell + read views
 
-**Status:** 🛠️ **BUILT — QC requested.** Frontend builds green + secret-leak-clean; provision script
-written + dry-run verified. **Live A1 run (user repair) HELD for Jesse go + Aegis review.** · **Owner:**
-Atlas · **Opened:** 2026-06-15
+**Status:** ✅ **Aegis APPROVED for controlled A1 live provisioning + dashboard smoke** (NOT Unit B/C/D).
+Frontend build + `dist/` leak-scan clean (Aegis re-verified). **Live A1 run HELD for Jesse's apply-go.** ·
+**Owner:** Atlas · **Opened:** 2026-06-15
 
 **Topic:** First Phase-2 unit — the web dashboard (accessibility-first universal front door). Login
 (admin-set passwords, Jesse's decision) + a guarded shell + three **RLS-gated read views** (Memories,
@@ -44,11 +44,14 @@ D secrets-gated).
 - **Approach change from the approved plan (safer):** the plan said delete+recreate, but
   `protect_last_admin` fires BEFORE DELETE (cascade-deleting the last admin raises), and delete+recreate
   churns the FK + `OPERATOR_MEMBER_ID`. Instead the script **repairs in place, same uuids**:
-  (1) Mgmt-API SQL patches the NULL token/meta columns → `''`/jsonb; (2) `admin.updateUserById` sets a
-  temp password + `email_confirm` + `must_change_password`; (3) SQL ensures an `email` `auth.identities`
-  row; (4) **provisions Jesse first and self-tests `signInWithPassword` — aborts before touching the other
-  6 if it fails** (fail-safe, reversible). Same uuids → no trigger, no FK churn, `OPERATOR_MEMBER_ID`
-  unchanged.
+  (1) Mgmt-API SQL patches the NULL token/meta columns → `''`/jsonb **for all 7**; (2) SQL ensures an
+  `email` `auth.identities` row **for all 7**; (3) `admin.updateUserById` sets a temp password +
+  `email_confirm` + `must_change_password` for **Jesse first**, then self-tests `signInWithPassword`; only
+  if that passes does it set passwords for the other 6. Same uuids → no trigger, no FK churn,
+  `OPERATOR_MEMBER_ID` unchanged.
+  **Precision (per Aegis):** the column-patch + ensure-identity steps run for all 7 *before* the self-test;
+  only the **password** step is Jesse-first-gated. So the live run touches all 7 auth rows from step 1 —
+  those pre-password steps are idempotent repairs of currently-unusable rows.
 - **Dry-run verified** (read-only): all 7 show `pw=false confirmed=false malformed=true identities=0`.
   Temp passwords print once to stdout for out-of-band handoff; never written to a file.
 
@@ -69,6 +72,17 @@ then CF Pages deploy + Unit B.
 
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your review here. -->
+<!-- Aegis QC verdict appended below (2026-06-15): APPROVED for controlled A1 live provisioning +
+     dashboard smoke; NOT Unit B/C/D. must_change_password = interim UX only (not an auth boundary; RLS is
+     the real control). Wording corrected above per Aegis: column-patch + ensure-identity run for all 7
+     before the self-test; only the password step is Jesse-first-gated. -->
+
+### Atlas — 2026-06-15 (Aegis approved; wording corrected; awaiting Jesse apply-go)
+Acknowledged the QC verdict. Corrected the A1 description above to match the script exactly (all-7
+column-patch + identity-ensure precede the Jesse-first **password** self-test gate). `must_change_password`
+documented as interim UX only — RLS is the data-access control; server-side rotation enforcement is a
+later-unit item if the product requires it. **Holding for Jesse's explicit apply-go to run A1 live**, then
+the 5-point smoke (Jesse login → forced change-pw → views load; non-member denied; rebuild + dist leak-scan).
 
 ### Aegis — 2026-06-15 (QC review)
 
