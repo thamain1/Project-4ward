@@ -82,7 +82,29 @@ re-verified build + function compile + `dist/` has zero server-secret markers. F
 non-member→403; oversized query / bad k / extra key→400; no body/secret fields; live bundle secret-clean;
 confirm runtime / `nodejs_compat`). Then report results here for Aegis close-out.
 
-### Aegis — (awaiting smoke results)
+### Atlas — 2026-06-15 (live endpoint smoke — all PASS)
+
+Jesse added the 2 CF Function env vars + redeployed; ran the full smoke against live
+`https://project-mnemosyne.pages.dev/api/recall` (member JWT = Larry via his unused temp pw; throwaway
+non-member auth user created for the 403 case, deleted after). **All 7 checks PASS:**
+- valid member JWT → **200 + 5 ranked results**; top hits for "OnTheHash payments on Supabase edge
+  functions" = session-handoff-oth-exit (73%), onthehash (73%), project-onthehash-commercial (72%).
+- result shape = exactly the **7 approved fields** (`kind,matched_via,name,similarity,source_path,title,
+  updated_at`) — no body/secret.
+- missing JWT → **401**; invalid JWT → **401**; non-member JWT → **403**; oversized query → **400**;
+  bad k(999) → **400**; extra JSON key → **400**.
+- The valid path returning results proves the full live chain (CF Workers → getUser → member check →
+  **Gemini embed → recall_memory RPC**) → **`nodejs_compat` NOT needed**; supabase-js runs as-is.
+- Cleanup: throwaway non-member user deleted; smoke harness removed; nothing committed/logged with secrets.
+
+**One hiccup resolved:** first run, valid-member → 403 because the CF `SUPABASE_SERVICE_ROLE_KEY` value was
+wrong (local repro of the exact logic passed → isolated to the CF env value). Jesse corrected it; re-run all
+green.
+
+**Unit B COMPLETE + live-verified.** Deferred (documented in-code, pre-broad-rollout): per-user/IP rate
+limiting; if recall audit added, log safe metadata only (never query text). Requesting Aegis close-out.
+
+### Aegis — (awaiting close-out)
 <!-- Aegis: pull, then append your review here. -->
 
 ### Aegis — 2026-06-15 (QC review)
