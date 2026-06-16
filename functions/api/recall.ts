@@ -9,6 +9,11 @@
 // NOT VITE_-prefixed, so they never enter the browser bundle:
 //   SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY  (must add in CF Pages env)
 //   SUPABASE_URL / SUPABASE_ANON_KEY            (fall back to the existing VITE_* if not separately set)
+//
+// Aegis QC (thread 0012) deferred items (NOT yet implemented — gated to before broad rollout):
+//   - per-user/IP RATE LIMITING (this endpoint spends Gemini tokens) — required before broad team rollout.
+//   - if recall AUDIT is ever added: log only safe metadata (actor, k, result count, timing) — NEVER the
+//     query text.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -60,7 +65,9 @@ export const onRequestPost = async (context: any): Promise<Response> => {
   // ---- parse + strict args (no coercion) ----
   let payload: any
   try { payload = await context.request.json() } catch { return json({ error: 'invalid JSON body' }, 400) }
-  if (typeof payload !== 'object' || payload === null) return json({ error: 'body must be an object' }, 400)
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return json({ error: 'body must be an object' }, 400)
+  // additionalProperties:false — reject unexpected keys (project standard) before any auth/embed
+  for (const key of Object.keys(payload)) if (key !== 'query' && key !== 'k') return json({ error: `unexpected field "${key}"` }, 400)
   if (typeof payload.query !== 'string') return json({ error: '"query" must be a string' }, 400)
   const query = payload.query.trim()
   if (!query) return json({ error: '"query" must be non-empty' }, 400)

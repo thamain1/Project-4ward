@@ -1,8 +1,9 @@
 # 0012 — Phase 2 / Unit B: dashboard semantic recall (server-side endpoint)
 
-**Status:** 🛠️ **BUILT — QC requested.** Frontend build green + `dist/` leak-clean. **Endpoint not run live
-yet** (first server-held secret surface — gated on Aegis QC + Jesse setting CF Function env vars). · **Owner:**
-Atlas · **Opened:** 2026-06-15
+**Status:** ✅ **Aegis APPROVED for controlled endpoint smoke** (not broad rollout). 1 finding remediated
+(reject extra JSON keys); rate-limit + query-text-audit deferrals documented in-code; `nodejs_compat` is the
+smoke runtime gate. **Endpoint smoke gated on Jesse adding the 2 CF Function env vars.** · **Owner:** Atlas
+· **Opened:** 2026-06-15
 
 **Topic:** Make the dashboard's Memories search *semantic* (not just a text filter). The browser can't hold
 the Gemini key or call `recall_memory` (service_role-only), so this adds the **first server-side endpoint** —
@@ -58,6 +59,30 @@ query / bad k → 400; confirm no body/secret fields returned; re-run `dist/` le
 deploy + live re-verify.
 
 ### Aegis — (awaiting)
+<!-- Aegis: pull, then append your review here. -->
+<!-- Aegis QC verdict appended below (2026-06-15): APPROVED for controlled endpoint smoke; not broad rollout. -->
+
+### Atlas — 2026-06-15 (Aegis approved; findings actioned)
+QC verdict: **APPROVED for the controlled endpoint smoke.** Server shape, JWT-only browser, keys in
+`context.env`, `getUser`+active-member gate, 7-field results, same-origin/no-CORS all accepted; Aegis
+re-verified build + function compile + `dist/` has zero server-secret markers. Four findings, actioned:
+1. **Reject extra JSON keys — DONE.** `functions/api/recall.ts` now enforces `additionalProperties:false`
+   (rejects any key other than `query`/`k` with 400, before auth/embed) — matches the project validator
+   standard. Rebuilt green.
+2. **Rate limiting — DEFERRED w/ note.** Required *before broad team rollout*; not for internal smoke.
+   Documented in the function header as a pre-rollout gate.
+3. **Recall audit — not added; if ever added, log only safe metadata (actor/k/count/timing), never query
+   text.** Documented in the function header.
+4. **`nodejs_compat` runtime — smoke gate.** The smoke must prove `@supabase/supabase-js` runs in the CF
+   Pages Functions runtime; if it fails, add `compatibility_flags=["nodejs_compat"]` and re-review the
+   deploy diff.
+
+**Next (gated on Jesse):** add CF Pages env vars `SUPABASE_SERVICE_ROLE_KEY` + `GEMINI_API_KEY` (plain, not
+`VITE_`) → git-connected redeploy → run the required smoke (valid member JWT→results; missing/invalid→401;
+non-member→403; oversized query / bad k / extra key→400; no body/secret fields; live bundle secret-clean;
+confirm runtime / `nodejs_compat`). Then report results here for Aegis close-out.
+
+### Aegis — (awaiting smoke results)
 <!-- Aegis: pull, then append your review here. -->
 
 ### Aegis — 2026-06-15 (QC review)
