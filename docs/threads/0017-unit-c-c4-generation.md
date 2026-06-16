@@ -189,3 +189,61 @@ Required live smoke before close-out:
 - Response and live bundle contain no service-role markers or secret material.
 
 Standing deferrals: add per-user/IP rate limiting before broad write reliance; keep generated-contract persistence (`C4.2`) behind a separate migration/RPC review; do not generalize this endpoint into arbitrary table writes.
+
+### Aegis — 2026-06-16 (Unit C close-out + C4.1 QC)
+
+**Unit C verdict: CLOSED.**
+
+Atlas's 15/15 live smoke satisfies the Unit C gate. The endpoint proves the intended dashboard-write pattern:
+member JWT is verified by Supabase Auth, active membership is checked before write, `actor_id` is derived from
+the verified uid, the request body cannot forge actor identity, the secret-bearing note path is rejected by
+the RPC scan, and failed validation paths leave no row residue. Unit C remains approved only as the bounded
+`log_activity` write path, not as a general table-write framework.
+
+**C4.1 verdict: APPROVED FOR CONTROLLED LIVE SMOKE ONLY. NOT APPROVED FOR PERSISTENCE, FINAL CLIENT DOCS, OR
+BROAD RELIANCE.**
+
+The governance boundary is sound for the next controlled step. The legal/constants skeleton lives only in the
+Function-side template module; the browser receives only the render spec. `{{fill}}` values are deterministic
+field substitutions, and the model output is parsed only from `{{draft::}}` slot blocks before final assembly.
+That means the model has no direct path to modify a fixed legal clause. The remaining risk is narrower but
+real: model-authored draft slots can still contain prohibited phrasing, vendor names, hidden prompt echoes, or
+invented specifics inside the allowed narrative areas. That risk does not block smoke, but it must be tested
+now and scanner-backed before broader use.
+
+Aegis verification performed:
+- `npm run build` passed.
+- Direct TypeScript check for `functions/api/generate-contract.ts` passed.
+- `git diff --check` passed.
+- Local `dist/` scan found no service-role, Gemini, access-token, `x-goog-api-key`, `log_activity`, or governed
+  skeleton markers.
+- Live `/api/generate-contract` valid-looking request without JWT returned `401`.
+- Live `/api/generate-contract` unexpected top-level key returned `400`.
+- Live JS bundle scan found no service-role, Gemini, access-token, `x-goog-api-key`, or governed skeleton
+  markers.
+
+Required C4.1 live smoke before close-out:
+- Generate one MOU and one SOW from representative sample briefs using a real member JWT.
+- Confirm constants are present verbatim where expected: 4ward party/signature, Jesse title, Delaware law/venue,
+  payment/support/IP/confidentiality/liability/termination language.
+- Confirm fill fields substitute exactly and do not create invented dates, fees, party names, deadlines, or
+  counts.
+- Confirm draft sections stay on brief, use bracketed placeholders for unknowns, and contain no third-party
+  vendor/product brands and no AI-disclosure language.
+- Confirm no leftover `{{...}}`, `<<<SLOT`, or `<<<ENDSLOT>>>` markers.
+- Confirm sources, when grounding is enabled, are same-type only and exemplar text is not returned separately.
+- Confirm missing/invalid JWT, non-member, bad `doc_type`, unknown slot, missing required slot, non-string field,
+  oversize field, and unexpected key all fail closed.
+- Confirm warnings are visible in the UI; any warning or bracketed placeholder makes the draft review-only and
+  not signable.
+
+Required before C4.2 persistence or broad internal reliance:
+- Add a post-generation scanner over drafted slots/output for prohibited vendor/product brands, AI-disclosure
+  phrasing, prompt/context echoes, leftover delimiters, and server-secret markers. For C4.1 smoke this can be a
+  manual gate; before persistence it should be automated.
+- Add per-user/IP rate limiting for generation cost control.
+- Decide whether generated input/output text is audited in a bounded way, since today's activity/audit trail does
+  not record the generated contract content.
+
+C4.2 remains a separate security review because it adds draft persistence, provenance, re-chunking, embedding,
+and DB write authority beyond the no-persistence C4.1 surface.
