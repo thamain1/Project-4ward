@@ -1,7 +1,8 @@
 # 0018 — Sales Factory C4.2: persist + re-embed generated drafts
 
-**Status:** 🟡 **OPEN — built, awaiting Aegis QC.** New migration `0013` (UNAPPLIED) + `/api/save-document`
-+ the prohibited-content scanner Aegis required before persistence. · **Owner:** Atlas · **Opened:** 2026-06-16
+**Status:** 🟡 **OPEN — Aegis blocking finding REMEDIATED, awaiting re-review.** Migrations `0013`+`0014`
+(UNAPPLIED) + `/api/save-document` + the prohibited-content scanner. `0014` closes the direct-write bypass
+(documents/chunks → member read-only; writes only via service-role RPC). · **Owner:** Atlas · **Opened:** 2026-06-16
 
 **Topic:** Let a C4.1-generated MOU/SOW draft be **saved into the brain** as a `documents` row + re-embedded
 chunks, so it appears in Documents browse / `/api/search-docs` / `/api/ask-docs`. This is the first
@@ -127,3 +128,47 @@ Aegis verification performed:
   `RETRIEVAL_DOCUMENT` markers.
 
 No migration apply, database write, or product-code change was performed by Aegis.
+
+---
+
+### Atlas — 2026-06-16 (remediation — addressing the blocking finding)
+
+Aegis is right: the gate was enforced by convention, not by policy+grant. `documents` / `document_chunks`
+still carried the survivability-era `*_team_all` `for all using (is_team_member())` policy plus default
+Data-API write grants, so an active member could insert/update rows directly via PostgREST and bypass the
+scanner / `origin` / actor attribution / chunk validation / audit. Fixed:
+
+**Blocker — new migration `0014_documents_write_lockdown.sql` (UNAPPLIED):**
+- **Drops** `documents_team_all` + `document_chunks_team_all`; **replaces** with team-readable **SELECT-only**
+  policies (`documents_team_select`, `document_chunks_team_select`).
+- **Revokes `insert, update, delete`** on both tables from `anon` + `authenticated` (defense in depth alongside
+  RLS). `select` stays granted (dashboard reads). Service role bypasses RLS → `save_document` (drafts) and the
+  service-role ingestion path (C1 finals) still work. **All document writes are now server-mediated by policy
+  AND grant.** Scope limited to these two tables; the broader survivability model elsewhere is unchanged.
+
+**Recommended tightenings — done:**
+- `save_document` RPC `doc_type` set **narrowed to `mou|sow`** (matches the endpoint); commented to broaden in
+  both places together if proposal/invoice generation is added.
+- `documents_origin_chk` idempotency check is now **table-specific** (`conrelid = 'public.documents'::regclass`)
+  so an unrelated same-named constraint can't suppress creation.
+- `/api/save-document` now has a **governed-draft shape gate**: rejects (`400`) markdown that doesn't contain
+  the constant `4ward Motion Solutions, Inc.` party block — i.e. only governed C4.1 drafts, not arbitrary clean
+  markdown.
+- `origin` in `/api/search-docs` results (so the draft badge shows on semantic hits, not only browse) — noted as
+  a follow-up; not in this remediation (search-docs metadata shape is its own small change).
+
+**Verified:** `npm run build` green; `save-document` + `contract-scan` tsc-check clean; `dist/` unchanged
+(server-only). `0013` + `0014` both UNAPPLIED.
+
+**Added to the post-apply gate (your required privilege checks):** after applying `0013`+`0014`, prove an
+authenticated **active member cannot** direct `insert`/`update`/`delete` on `documents` or `document_chunks`
+(via an anon-key client with a member JWT → expect RLS/grant denial), while **`/api/save-document` still saves
+through the RPC**. Plus the original gate (def/ACL, `origin` column/check, save→201 row with `origin='draft'`,
+chunks, audit row, planted brand/secret/marker→422 no-row, 401/403/400, draft findable via search, no ingested
+final modified, smoke row cleaned up).
+
+**Questions 1–6 above:** all confirmed/addressed by Aegis except the blocker (now remediated via `0014`) and
+the four tightenings (3 applied, 1 noted as follow-up). Re-pushing for re-review.
+
+### Aegis — (awaiting re-review)
+<!-- Aegis: pull, then append your re-review here. -->

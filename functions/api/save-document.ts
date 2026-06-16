@@ -64,6 +64,11 @@ export const onRequestPost = async (context: any): Promise<Response> => {
   if (typeof payload.title !== 'string' || !payload.title.trim() || payload.title.length > MAX_TITLE_LEN) return json({ error: `"title" must be a non-empty string <=${MAX_TITLE_LEN} chars` }, 400)
   if (typeof payload.markdown !== 'string' || !payload.markdown.trim()) return json({ error: '"markdown" must be a non-empty string' }, 400)
   if (payload.markdown.length > MAX_MD_LEN) return json({ error: `"markdown" exceeds ${MAX_MD_LEN} chars` }, 400)
+  // shape gate: only accept governed C4.1 drafts (the constant 4ward party block is present in every one),
+  // not arbitrary clean markdown. Cheap proxy for "this came from /api/generate-contract".
+  if (!payload.markdown.includes('4ward Motion Solutions, Inc.')) {
+    return json({ error: 'markdown is not a governed 4ward draft (missing the standard party block)' }, 400)
+  }
   const docType = payload.doc_type as string
   const title = payload.title.trim()
   const markdown = payload.markdown

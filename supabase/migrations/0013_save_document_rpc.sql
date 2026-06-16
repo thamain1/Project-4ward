@@ -11,7 +11,7 @@
 
 alter table public.documents add column if not exists origin text not null default 'ingested';
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'documents_origin_chk') then
+  if not exists (select 1 from pg_constraint where conname = 'documents_origin_chk' and conrelid = 'public.documents'::regclass) then
     alter table public.documents add constraint documents_origin_chk check (origin in ('ingested','draft'));
   end if;
 end $$;
@@ -36,7 +36,9 @@ begin
   if exists (select 1 from jsonb_object_keys(p_payload) k where k not in ('doc_type','title','extracted_text','chunks')) then
     raise exception 'save_document: unexpected key in payload';
   end if;
-  if v_doc_type is null or v_doc_type not in ('sow','mou','invoice','proposal','brief','runbook','other') then
+  -- least privilege: the RPC accepts only the C4.1 generated-draft types (matches /api/save-document). Broaden
+  -- here AND in the endpoint if proposal/invoice generation is added later.
+  if v_doc_type is null or v_doc_type not in ('mou','sow') then
     raise exception 'save_document: bad doc_type %', v_doc_type;
   end if;
   if jsonb_typeof(p_payload->'title') is distinct from 'string' or v_title = '' or length(v_title) > 300 then
