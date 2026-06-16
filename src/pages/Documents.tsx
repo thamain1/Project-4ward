@@ -39,6 +39,12 @@ export default function Documents() {
   const [text, setText] = useState('')
   const [textLoading, setTextLoading] = useState(false)
 
+  // Q&A (C2 — RAG over contracts)
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<{ answer: string; sources: { id: string; title: string; doc_type: string; similarity: number }[] } | null>(null)
+  const [asking, setAsking] = useState(false)
+  const [askErr, setAskErr] = useState<string | null>(null)
+
   useEffect(() => {
     supabase
       .from('documents')
@@ -82,6 +88,24 @@ export default function Documents() {
   }
   function clearSearch() { setSq(''); setHits(null); setSearchErr(null) }
 
+  async function ask(e: FormEvent) {
+    e.preventDefault()
+    const q = question.trim()
+    if (!q) return
+    setAsking(true); setAskErr(null); setAnswer(null)
+    try {
+      const res = await fetch('/api/ask-docs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ question: q }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `ask failed (${res.status})`)
+      setAnswer(data)
+    } catch (e: any) { setAskErr(e?.message ?? 'ask failed') }
+    finally { setAsking(false) }
+  }
+
   async function openDoc(d: Doc | Hit) {
     setOpenId(d.id); setOpenTitle(d.title); setText(''); setTextLoading(true)
     const { data, error } = await supabase.from('documents').select('extracted_text').eq('id', d.id).maybeSingle()
@@ -114,6 +138,32 @@ export default function Documents() {
             {' · MOUs / SOWs / proposals / invoices'}
           </p>
         </div>
+
+        {/* Q&A — ask a question across all contracts (RAG, cited) */}
+        <form onSubmit={ask} className="rounded-lg border border-blue-900/50 bg-blue-950/20 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <input placeholder="Ask your contracts — e.g. “What are GIAV’s milestone amounts?”" value={question} onChange={(e) => setQuestion(e.target.value)}
+              className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button type="submit" disabled={asking} className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 text-sm font-medium transition">{asking ? 'Thinking…' : 'Ask'}</button>
+          </div>
+          {askErr && <p className="text-sm text-red-400">{askErr}</p>}
+          {answer && (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{answer.answer}</p>
+              {answer.sources.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="text-[10px] uppercase tracking-wide text-slate-500 self-center">sources:</span>
+                  {answer.sources.map((s) => (
+                    <button key={s.id} onClick={() => openDoc(s as any)} className="rounded bg-slate-800 hover:bg-slate-700 px-2 py-0.5 text-[11px] text-blue-300 transition">
+                      {s.title} ({(s.similarity * 100).toFixed(0)}%)
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-slate-600">Generated from your contracts — verify against the source documents before relying on it.</p>
+            </div>
+          )}
+        </form>
 
         <form onSubmit={runSearch} className="flex items-center gap-2">
           <input placeholder="Semantic search — e.g. “GIAV payment terms”, “M1 milestone amount”…" value={sq} onChange={(e) => setSq(e.target.value)}
