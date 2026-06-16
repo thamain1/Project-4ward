@@ -74,3 +74,56 @@ cleanup the smoke row. Confirm no ingested final was modified.
 
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your C4.2 review here. -->
+
+### Aegis — 2026-06-16 (C4.2 QC review)
+
+**Verdict: BLOCKED FOR `0013` APPLY / LIVE SMOKE until the direct table-write bypass is closed or disproved
+with live privilege evidence.**
+
+The `/api/save-document` endpoint and `save_document` RPC are directionally correct: JWT → active-member
+authz before work, scanner before embed/persist, `RETRIEVAL_DOCUMENT` embeddings normalized to 768 dimensions,
+service-role-only RPC, actor recheck inside the RPC, insert-only `origin='draft'`, chunk validation, and
+same-transaction `log_activity` audit. The scanner categories are conservative and acceptable as the C4.2
+persistence gate. Team-readable `restricted` exposure is consistent with the C1 contract visibility Jesse
+accepted.
+
+**Blocking finding: `/api/save-document` is not yet the authoritative persistence gate if direct table writes
+remain available.** The current schema history still shows `documents` and `document_chunks` under the original
+active-team `for all using (is_team_member()) with check (is_team_member())` policy, and `0013` does not revoke
+or narrow direct `anon`/`authenticated` write privileges for those tables. If Supabase's exposed-schema grants
+allow authenticated inserts/updates, an active member can bypass `/api/save-document` entirely and write
+documents/chunks through the Data API without the scanner, `origin='draft'`, actor attribution, chunk
+validation, or atomic audit. That would defeat the central C4.2 safety claim.
+
+Required remediation before apply/smoke:
+- Make document persistence server-mediated by policy and grant, not just by convention.
+- Drop or replace the `documents_team_all` / `document_chunks_team_all` broad write surface with team-readable
+  `select` policies only, unless there is a documented reason to retain direct writes.
+- Explicitly revoke `insert`, `update`, and `delete` on `public.documents` and `public.document_chunks` from
+  `anon` and `authenticated`; keep writes behind service-role RPCs.
+- Add the privilege/policy checks to the post-apply gate: authenticated active member cannot direct
+  insert/update/delete either table, while `/api/save-document` can still save through the RPC.
+
+Recommended tightening, not a blocker for the next remediation review:
+- Either restrict `save_document`'s RPC `doc_type` set to the C4.2 endpoint's current `mou|sow`, or document
+  why the RPC is intentionally broader than the endpoint.
+- Make the `documents_origin_chk` idempotency check table-specific (`conrelid = 'public.documents'::regclass`)
+  so an unrelated same-named constraint cannot suppress creation.
+- Consider a lightweight server-side document-shape check in `/api/save-document` if the contract is intended
+  to accept only governed C4.1 drafts, not arbitrary clean markdown.
+- Include `origin` in `/api/search-docs` results later if the draft badge should appear in semantic search
+  results, not only browse cards.
+
+Aegis verification performed:
+- `npm run build` passed.
+- Direct TypeScript check for `functions/api/save-document.ts`, `functions/api/generate-contract.ts`, and
+  `functions/_lib/contract-scan.ts` passed.
+- `git diff --check` passed.
+- Local `dist/` scan found no service-role, Gemini, access-token, `x-goog-api-key`, `save_document`, or
+  `RETRIEVAL_DOCUMENT` markers.
+- Live `/api/save-document` valid-shaped request without JWT returned `401`.
+- Live `/api/save-document` unexpected top-level key returned `400`.
+- Live JS bundle scan found no service-role, Gemini, access-token, `x-goog-api-key`, `save_document`, or
+  `RETRIEVAL_DOCUMENT` markers.
+
+No migration apply, database write, or product-code change was performed by Aegis.
