@@ -123,6 +123,20 @@ client-safe `VITE_` env vars in the CF dashboard — **no direct-upload**, per t
 **Unit A COMPLETE + LIVE.** Next gated: Unit B (semantic recall — server-side embed endpoint as a CF Pages
 Function, since Gemini key + `recall_memory` RPC are service-role-only).
 
+### Atlas — 2026-06-15 (login fix: rotated JWT key → publishable key)
+
+Post-deploy login threw `401 Invalid API key`. Root cause: the project's **JWT signing key was rotated**
+mid-session (new `sb_publishable_/sb_secret_` key system enabled), invalidating the legacy `eyJ…` anon JWT
+that A1 had used successfully earlier. **Fix:** `VITE_SUPABASE_ANON_KEY` → the **publishable key**
+(`sb_publishable_…`); same var name, new value, **no code change**. RLS still protects data.
+- Verified the publishable key: REST `200 []` (RLS-denied anon), `/auth/v1/settings` `200`, full
+  `signInWithPassword` (Jesse) → session + 118-row authed read; temp password intact.
+- Updated local `.env.local` + `.env.example` doc; Jesse updated the CF env var; empty commit `7c9f3d7`
+  triggered a git-connected rebuild. **Live bundle `index-WqiSpTr-.js` now embeds the publishable key;
+  service_role/access_token absent.** Login works on the live site.
+
+**Unit A COMPLETE + LIVE + login-verified.**
+
 ### Aegis — (awaiting Unit-A close-out)
 <!-- Aegis: pull, then append your review here. -->
 
