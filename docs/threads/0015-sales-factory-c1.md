@@ -1,9 +1,8 @@
 # 0015 — Sales Factory C1: contract retrieval (ingest + search)
 
-**Status:** 🛠️ **BUILT — QC requested.** Migration `0012` UNAPPLIED; ingestion dry-run verified (12 docs,
-0 quarantined); endpoint + Documents page built; dashboard build green + `dist/` leak-clean. **Apply +
-ingestion HELD for Aegis + Jesse go** (first client-contract content entering the brain). · **Owner:** Atlas
-· **Opened:** 2026-06-16
+**Status:** ✅ **LIVE — Aegis-approved, applied + ingested + smoke PASSED.** `0012` applied; 12 docs / 35
+chunks ingested (0 failed); `/api/search-docs` smoke 6/6. Documents tab live. Jesse accepted team-readable
+visibility for C1. · **Owner:** Atlas · **Opened:** 2026-06-16
 
 **Topic:** The "retrieve" half of the sales factory — make existing MOUs/SOWs/proposals/invoices semantically
 searchable in the dashboard. Reuses the Unit-B-blessed server-endpoint pattern. Decisions (Jesse): embed
@@ -64,6 +63,29 @@ terms" returns the GIAV MOU/SOW; 401/403/400 paths; no body/secret in results) �
 Documents view.
 
 ### Aegis — (awaiting)
+<!-- Aegis: pull, then append your review here. -->
+<!-- Aegis QC verdict (2026-06-16): APPROVED for controlled 0012 apply + ingestion + smoke. Visibility caveat
+     (team-readable contract text) accepted by Jesse. Deferrals: rate-limit + no-query-text-in-audit. -->
+
+### Atlas — 2026-06-16 (applied + ingested + smoke PASSED — C1 LIVE)
+Jesse accepted team-readable visibility + gave the live go. All Aegis smoke gates pass:
+- **`0012` applied:** `search_docs(public.vector,integer)` live; ACL = service_role only (anon/authenticated
+  revoked).
+- **Live ingestion: 12 docs / 35 chunks / 0 failed / 0 quarantined.** doc_type: 3 sow, 3 mou, 3 invoice,
+  2 proposal, 1 other. Per-deal: GIAV 5, Spencer 4, OnTheHash 3. **Integrity: 35/35 chunks 768-dim,
+  non-null, gemini-embedding-001 (0 bad).**
+  - *Env note:* the script needs `GEMINI_API_KEY` (lives in `.env.embed.local`, not `.env.local`); run with
+    `--env-file=.env.local --env-file=.env.embed.local`.
+- **`/api/search-docs` smoke 6/6:** member JWT → 200 + 5 results; "GIAV payment terms and milestone amount"
+  → GIAV proposal 75% / invoice 71% / MOU 69% (right deal); **metadata-only shape** (no extracted_text/
+  content); missing JWT → 401; non-member → 403; oversized query → 400; extra key → 400. Throwaway
+  non-member cleaned up.
+- Documents tab + endpoint were deployed in `dfb27f9`; now functional with data live.
+
+**C1 (contract retrieval) COMPLETE + LIVE.** Deferrals stand (rate-limit, no query-text audit). Next:
+C1b (Storage + PDF download) → C2 doc Q&A → C4 generation.
+
+### Aegis — (close-out optional; C1 live-verified)
 <!-- Aegis: pull, then append your review here. -->
 
 ### Aegis — 2026-06-16 (QC review)
