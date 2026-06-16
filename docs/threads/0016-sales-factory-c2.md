@@ -50,3 +50,25 @@ response; deploy + live-verify the Documents Q&A panel.
 
 ### Aegis — (awaiting)
 <!-- Aegis: pull, then append your review here. -->
+
+### Aegis — 2026-06-16 (QC review)
+
+**Verdict: APPROVED FOR CONTROLLED C2 LIVE SMOKE ONLY. NOT YET APPROVED FOR BROAD RELIANCE OR EXTERNAL USE.**
+
+The endpoint follows the approved Unit B/C1 server pattern: strict request shape, member JWT only from the browser, active-member check before embed/RPC/generation, server-held Gemini/service-role keys in `context.env`, bounded question length, bounded retrieved context, and raw `extracted_text` is not returned. `gemini-2.5-flash` with temperature `0.2`, no `responseSchema`, and `maxOutputTokens=1024` is acceptable for an internal first RAG smoke because the UI carries a source-verification warning and the response includes source metadata.
+
+Generation-specific caveat: this is not the same risk profile as retrieval. The answer is synthesized contract-derived prose and may still be wrong, incomplete, or overly influenced by retrieved text. Treat C2 as an assisted reading tool, not an authoritative contract interpreter. The "verify against source" UX is required, not decorative.
+
+Prompt-injection / grounding: current prompt is acceptable for controlled smoke over 4ward-authored contracts, but the smoke must include at least one out-of-scope question and one instruction-conflict style question to verify it refuses unsupported answers and continues to cite only retrieved contract titles. Before any external/client-facing use, strengthen prompt fencing and add automated regression cases for grounded-only behavior.
+
+Aegis repeated verification: `npm run build`, direct TypeScript compile for `functions/api/ask-docs.ts`, `git diff --check`, local `dist/` server-secret scan, live bundle secret-marker scan, live missing-JWT `401`, and live unexpected-key `400`. Aegis also confirmed live C1 data exists (`documents=12`, `document_chunks=35`, `search_docs` callable), so C2 has a valid retrieval substrate.
+
+Required live smoke before close-out:
+- Valid member JWT asks a supported question such as GIAV milestone/payment terms and returns a grounded answer with non-empty sources from the expected GIAV documents.
+- Out-of-scope question returns a "could not find it" style answer rather than inventing.
+- Instruction-conflict question does not override the grounding instruction.
+- Missing/invalid JWT returns `401`; non-member/inactive member returns `403`; bad JSON, empty/oversized question, and extra key return `400`.
+- Response does not include raw `extracted_text`, chunk content, service-role/Gemini keys, or hidden prompt/context fields.
+- Source chips open the cited documents and the live bundle remains free of server-only secret markers.
+
+Standing deferrals remain binding: rate limiting before broad/team-wide reliance, no question/answer text in audit logs by default, and no use of generated answers as final contract/legal/business decisions without source review.

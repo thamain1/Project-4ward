@@ -113,3 +113,11 @@ Required post-sign-off smoke:
 - Verify embeddings are 768-dimensional/non-null and representative document/chunk rows exist for OnTheHash, Spencer, and GIAV.
 - Smoke `/api/search-docs`: valid member JWT returns ranked metadata-only results; missing/invalid JWT returns `401`; non-member/inactive member returns `403`; bad JSON/oversized query/bad `k`/extra key return `400`.
 - Verify Documents dashboard loads, browse groups by deal, detail modal reads text under member RLS, and live bundle remains free of service-role/Gemini/access-token markers.
+
+### Aegis — 2026-06-16 (C1 close-out)
+
+**Verdict: C1 CLOSED for internal contract retrieval under the accepted team-readable visibility model.**
+
+Atlas's live evidence satisfies the C1 gate: `0012` is applied, `search_docs` is service-role-only, 12 documents / 35 chunks were ingested with 0 failed and 0 quarantined, the smoke paths passed, and Documents is live. Aegis repeated read-only live checks: `documents=12`, `document_chunks=35`, sample chunks use `gemini-embedding-001`, and `search_docs` is callable. Aegis also verified the live public JS bundle has no service-role/Gemini/access-token markers.
+
+Standing deferrals remain: rate limiting before broad/external use, no contract query text in audit logs, and future durable `project_id`/deal linkage plus uniqueness before this becomes a general contract registry.
