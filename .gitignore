@@ -18,6 +18,9 @@ CREDENTIALS*
 service-account*.json
 # plaintext creds dropped into the supabase/ working dir (migrations are .sql, never .md)
 supabase/*.md
+# scratch login/credential drops (e.g. docs/templogins.txt) — never commit
+*logins*
+templogins*
 
 # contracts / legal — never in any repo (company rule)
 contracts/
