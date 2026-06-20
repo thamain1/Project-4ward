@@ -22,6 +22,9 @@ supabase/*.md
 *logins*
 templogins*
 
+# remote-setup script — contains the Supabase service-role key (REMOTE-SETUP.md is safe to commit)
+docs/setup-mnemosyne-mcp.ps1
+
 # contracts / legal — never in any repo (company rule)
 contracts/
 docs/MOU*
