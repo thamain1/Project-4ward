@@ -82,6 +82,19 @@ const JOBS = [
   { file: 'session_handoff_oth_phase4.md', marker: false, steps: [
     (t, l) => sealPattern(t, /postgresql:\/\/[^\s`'")|]+/, 'service=oth-database env=prod sensitivity=restricted', l),
   ]},
+  { file: 'intellioptics-2.5.md', marker: false, steps: [
+    (t, l) => sealPattern(t, /SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/, 'service=sendgrid scope=intellioptics sensitivity=team', l),
+  ]},
+  { file: 'intellioptics.md', marker: false, steps: [
+    (t, l) => sealTableRow(t, /Pooler DSN/, 'service=intellioptics-db env=pooler sensitivity=restricted', l),
+    (t, l) => sealTableRow(t, /Direct DSN/, 'service=intellioptics-db env=direct sensitivity=restricted', l),
+  ]},
+  { file: 'project_oth_replit_exit.md', marker: false, steps: [
+    (t, l) => sealPattern(t, /postgresql:\/\/[^\s`'")|]+/, 'service=oth-neon env=prod sensitivity=restricted', l),
+  ]},
+  { file: 'intellisign.md', marker: false, steps: [
+    (t, l) => sealPattern(t, /(?<=Initial password:\s{0,2})[^\s*`]{4,}/, 'service=intellisign-admin scope=initial sensitivity=restricted', l),
+  ]},
 ]
 
 console.log(APPLY ? '=== SEALING (apply) ===' : '=== DRY RUN (no writes) — pass --apply to write ===')

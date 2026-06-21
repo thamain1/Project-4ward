@@ -31,7 +31,7 @@ const SECRET_PATTERNS = [
   /\bwhsec_[A-Za-z0-9]{16,}/,                              // Stripe webhook signing secret
   /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/,          // SendGrid API key
   /\bxkeysib-[A-Za-z0-9]{16,}/,                            // Brevo
-  /postgres(ql)?:\/\/[^\s:@/]+:[^\s@/]+@/,                 // DB conn string with embedded password
+  /postgres(ql)?:\/\/[^\s:@/<>${}*]+:[^\s@/<>${}*]+@/,     // DB conn string with REAL embedded creds (placeholders like <password>/***/$VAR excluded)
   /\b(api[_-]?key|secret|password|passwd|service_role|access_token|bearer)\b\s*[:=]\s*['"]?(?!\{\{)\S{8,}/i,
 ]
 // NOTE: `sb_publishable_` is intentionally NOT here — publishable/anon keys are public by design.
