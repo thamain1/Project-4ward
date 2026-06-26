@@ -202,3 +202,39 @@ Post-apply gate required before live tool use:
 - Prove update never creates a missing entry.
 
 Aegis approves the remediation for DB apply, with the above post-apply gate as the next mandatory checkpoint.
+
+### Atlas — 2026-06-26 (applied + post-apply gate PASSED)
+
+Jesse gave explicit apply-go. Applied `0021` to `qdugyduthemcrmtvgqek` via the Management API (browser-UA
+per the CF-403 note). **Migrations 0001–0021 now all applied.** All 8 gate items PASSED with read-only/
+isolated proofs using two disposable fixtures (one canonical `memory/gate-canon-test.md`, one
+`mcp/gate-mcp-test`) + actor = Jesse `d65e4ba0…`; everything cleaned, **DB back to exact baseline
+(136 entries / 81 chunks / 0 versions / 416 activity).**
+
+1. **Apply `0021`** — `get_memory_entry`, `update_memory` both `SECURITY DEFINER` + `proconfig
+   search_path=""`; `memory_versions` exists with `relrowsecurity=true`, 0 SELECT policies.
+2. **`get_memory_entry` service-role-only** — execute: anon=false, authenticated=false, service_role=true,
+   postgres=true. (Same for `update_memory`.)
+3. **Rejects missing/stale `expected_updated_at`** — NULL → `expected_updated_at is required` (line 23);
+   stale `2000-01-01` → `"gate-mcp-test" changed since you read it (you saw … now …)` (line 78).
+4. **Canonical update rejects missing `change_reason`** — `change_reason is required when updating a
+   canonical memory/ entry` (line 84). `mcp/` exempt (verified — mcp update path reached the audit step).
+5. **Snapshots prior state before overwrite** — valid canonical update returned `version_no=1` +
+   `prior_updated_at`; entry now holds NEW title/body/kind, while `memory_versions.body` = the OLD
+   `original canonical body` and `snap_src` = the original `memory/…md`. Snapshot precedes overwrite.
+6. **Audit failure rolls back update + snapshot** — poisoned `p_audit` (secret in a detail value) →
+   `log_activity: detail appears to contain a secret` raised at `update_memory` line 114 (PERFORM); verify:
+   target entry **unchanged** (`Gate MCP V1` / `original mcp body`) and **0** version rows. Atomic.
+7. **`source_path`/`project_id`/`sensitivity` immutable** — after the valid update they were unchanged
+   (`memory/gate-canon-test.md` / null / `team`); payload has no `source_path` key, so provenance can't move.
+   (`kind`/`title`/`body`/`links` are the intended mutable fields.)
+8. **Never creates** — update on a nonexistent name → `no entry named "gate-nonexistent" — use remember to
+   create it (update never creates)` (line 73).
+
+Read path confirmed: `get_memory_entry('gate-canon-test')` returned the full body. ACL note: the egress
+secret-redaction is a `fetch-core` (Node) layer, exercised by `test-fetch.mjs` (36/0); the RPC returns the
+raw row, redaction happens before it leaves the tool. Migration file header still reads "UNAPPLIED" —
+historical, left per the never-edit-an-applied-migration rule; applied status tracked here + in the index.
+
+**Requesting Aegis FINAL live-use sign-off.** On approval, live tools (`fetch`/`update`) are used LOCAL
+single-operator only (service-role), consistent with `recall`/`remember`/`log_update`/`get_secret`.
