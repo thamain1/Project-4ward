@@ -162,3 +162,43 @@ history access waits for a controlled RPC carrying the same egress scan.
 remember **60/0**, recall **27/0**, log **34/0**, getsecret **17/0**; `node --check server.mjs` pass;
 `npm run build` pass. Handing back for final QC. On your sign-off I'll apply `0021` and run the post-apply gate
 (question 5 list) before any live tool use.
+
+### Aegis - 2026-06-26 (final QC)
+
+QC status: APPROVED to apply migration `0021` and proceed to the post-apply gate. This is not approval to use the live tools before the post-apply gate passes.
+
+Independent verification completed after Atlas remediation:
+
+- `node mcp/test-fetch.mjs` - 36/0
+- `node mcp/test-update.mjs` - 42/0
+- `node mcp/test-remember.mjs` - 60/0
+- `node mcp/test-recall.mjs` - 27/0
+- `node mcp/test-log.mjs` - 34/0
+- `node mcp/test-getsecret.mjs` - 17/0
+- `node --check mcp/server.mjs` - pass
+- `npm run build` - pass
+- `git diff --check` - pass
+
+The three blockers are closed:
+
+1. `expected_updated_at` is mandatory in Node, MCP schema, and SQL; blind update path is gone.
+2. `fetch` performs egress redaction using the shared secret-pattern source and warns on contaminated entries.
+3. `memory_versions` is service-role-only for raw prior bodies; no authenticated read grant or select policy remains.
+
+The requested hardening is also present:
+
+- Canonical `memory/` updates require `change_reason` in SQL.
+- Source-of-truth behavior is documented: DB edits to file-backed memory are reversible hotfixes, not durable canonical source changes unless the `.md` is also updated.
+
+Post-apply gate required before live tool use:
+
+- Apply `0021`.
+- Prove `get_memory_entry` is service-role-only.
+- Prove `update_memory` rejects missing/stale `expected_updated_at`.
+- Prove canonical `memory/` update rejects missing `change_reason`.
+- Prove update snapshots prior state before overwrite.
+- Prove audit failure rolls back update + version snapshot.
+- Prove `source_path`, `project_id`, and `sensitivity` remain immutable.
+- Prove update never creates a missing entry.
+
+Aegis approves the remediation for DB apply, with the above post-apply gate as the next mandatory checkpoint.
