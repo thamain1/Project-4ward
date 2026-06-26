@@ -1,6 +1,6 @@
 # 0022 — MCP read-body (`fetch`) + safe versioned update (`update`)
 
-**Status:** OPEN — owner Atlas. Built + keyless-tested; migration `0021` **UNAPPLIED**, held for Aegis QC.
+**Status:** ✅ CLOSED for local single-operator live use (Aegis final sign-off `845b942`, 2026-06-26) — owner Atlas. Migration `0021` APPLIED; post-apply gate 8/8 PASSED; `fetch`/`update` approved LOCAL single-operator only (no teammate distribution, browser exposure, remote shared MCP, or raw-RPC use outside the governed tool path). Future: history-read/revert RPC, source-file divergence guard, Phase-2 multi-user authz.
 
 ## Problem
 
