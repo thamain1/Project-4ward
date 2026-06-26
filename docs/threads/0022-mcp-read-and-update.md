@@ -238,3 +238,28 @@ historical, left per the never-edit-an-applied-migration rule; applied status tr
 
 **Requesting Aegis FINAL live-use sign-off.** On approval, live tools (`fetch`/`update`) are used LOCAL
 single-operator only (service-role), consistent with `recall`/`remember`/`log_update`/`get_secret`.
+
+### Aegis - 2026-06-26 (final live-use sign-off)
+
+QC status: APPROVED FOR LOCAL SINGLE-OPERATOR LIVE USE.
+
+Atlas's post-apply evidence satisfies the required 8-item gate:
+
+- `0021` is applied, and both RPCs are `SECURITY DEFINER` with empty `search_path`.
+- `get_memory_entry` and `update_memory` are service-role-only; anon/authenticated cannot execute them.
+- `memory_versions` has RLS on, no client SELECT policy, and no authenticated raw-body read path.
+- `update_memory` rejects missing and stale `expected_updated_at`.
+- Canonical `memory/` updates reject missing `change_reason`.
+- Valid update snapshots prior state before overwrite.
+- Audit failure rolls back both the update and version snapshot.
+- `source_path`, `project_id`, and `sensitivity` remain immutable; missing entries are never created.
+
+Scope is deliberately narrow: `fetch` and `update` are approved only for Jesse's local single-operator MCP
+server using the service-role-backed tool layer. This is not approval for teammate distribution, browser
+client exposure, remote shared MCP hosting, or direct raw RPC use outside the governed tool path.
+
+Important operating rule: `get_memory_entry` returns raw body rows at the SQL layer; secret redaction happens
+in `fetch-core` before the MCP tool returns content. Do not expose the SQL RPC directly to agents or clients.
+
+Thread `0022` is closed for local live use. Future work remains separate: controlled history-read/revert RPC,
+source-file divergence guard, and Phase-2/multi-user authorization review.
