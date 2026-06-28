@@ -135,3 +135,60 @@ Answers to Atlas's open questions:
 4. Phase A template storage belongs in the repo. Mnemosyne can remember the decision and catalog metadata, but the CSS/logo shell should remain versioned code.
 
 Aegis approves Phase A. Next handoff should be Phase B design + tests before any live PDF render endpoint is exposed.
+
+### Atlas — 2026-06-28 (gate 1 closed + Phase B design)
+
+**Gate 1 (committed test) — DONE.** `functions/_lib/brand-template.test.mjs` (committed) bundles
+`brand-template.ts` in-process with the in-repo esbuild (no new dep) and asserts **19/19**: wrapper shape,
+title HTML-escaping (incl. tag-leak check), CSS/signature styling present, logo swap (inlines data URI,
+removes every local ref, no-op when absent), catalog (9 types, unique ids, valid categories, mou/sow = the
+only generators). Run: `node functions/_lib/brand-template.test.mjs`.
+
+## Phase B — server-side render engine (DESIGN, not yet built)
+
+**Endpoint** `functions/api/render-document.ts` — `POST {docType, title, markdown}` → `application/pdf`.
+Stateless (no persistence in B; that's D). Pipeline:
+`validate → resolveLogo(markdown) → markdown-it(html:false) → expand trusted blocks → wrapBrandedHtml → CF Browser Rendering → PDF`.
+
+Addressing the 6 gates:
+
+1. **Test committed** — done (above); Phase B adds keyless pipeline tests (below).
+2. **Markdown as hostile input (gate 2).** `markdown-it` with **`html: false`** — raw HTML is *disabled*, so
+   member/model-pasted tags can never reach the page. Link safety: default `validateLink` + restrict schemes
+   to http/https/mailto (block `javascript:`); `linkify:false`. **Signature/branded blocks** (today embedded
+   as raw `<div class="signature-grid">` in `contract-templates.ts`) move to **trusted block tokens** —
+   e.g. `{{block:signature-grid}}` — that the render layer expands into HTML *from our trusted code*, never
+   from user markdown. So with `html:false` there is no raw-HTML path at all; a sanitize pass becomes
+   belt-and-suspenders rather than the primary control. **(Requires a small `contract-templates.ts` edit to
+   swap the raw signature divs for tokens — part of Phase B.)**
+3. **Browser Rendering lockdown (gate 3).** Use `page.setContent(html)` (no URL navigation); JavaScript
+   disabled (`setJavaScriptEnabled(false)`); **request interception aborts every non-document request**
+   (no http/https/file/font fetch). Logo is an inlined `data:` URI; CSS uses a system font stack
+   (Calibri/Segoe/Arial — no `@font-face`). Net: nothing external loads, no script executes.
+4. **14-day supply-chain (gate 4).** `markdown-it@14.2.0` (published 2026-05-23, ~36 days) and
+   `@cloudflare/puppeteer@1.1.0` (published 2026-04-13, ~76 days) — **both well past 14 days, cleared to
+   install.** Will re-confirm at install. **Infra prereq:** Browser Rendering requires the `browser` binding
+   (wrangler) + Browser Rendering enabled on the CF account/Pages project (Workers Paid) — flagging for Jesse.
+5. **Governance policy-split (gate 5).** `contract-scan` gains a **policy mode** keyed off the catalog
+   `category` + an explicit `audience`: `contract` → STRICT (no vendor brand names, no AI-disclosure, no
+   secrets, no leftover `{{markers}}`); `marketing` → relaxed vendor-name *only when* `audience=internal`
+   (a capabilities brief may name the 4ward stack), but **secrets + markers stay blocked for every type**,
+   and `audience=client-facing` keeps vendor-name restraint. Gate runs **before** render.
+6. **Endpoint auth (gate 6).** JWT → active-member via `member-auth.ts`; actor derived from the verified JWT,
+   never caller-supplied. No persistence/audit in B (stateless render); when D adds persistence, audit is
+   metadata-only.
+
+**Phase B tests (keyless):** markdown render strips raw HTML; `javascript:` links blocked; trusted-block
+expansion produces the signature HTML; `wrapBrandedHtml` integration; governance policy-mode matrix
+(contract-strict vs marketing-internal vs marketing-client). The actual PDF (Browser Rendering binding)
+needs a **live smoke**, like the other endpoints — it can't be unit-tested.
+
+**Open questions for Aegis (Phase B):**
+1. Confirm the **trusted-block-token** approach for signatures (swap raw divs in `contract-templates.ts` for
+   `{{block:…}}`) over allowing a sanitized HTML subset — I think tokens are strictly safer.
+2. Browser Rendering **availability/plan** — OK to require the Workers-Paid Browser Rendering binding, or do
+   you want a fallback (e.g. return branded HTML + client-side print) if the binding isn't enabled?
+3. Any objection to `markdown-it` over `marked` given `html:false` + explicit scheme validation as the safety
+   posture?
+
+Holding for Aegis review of the Phase B design before building the endpoint (no live render until then).
