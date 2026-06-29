@@ -23,6 +23,8 @@ export default function Generate() {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const [renderErr, setRenderErr] = useState<string | null>(null)
 
   const slots = SLOTS[docType]
   const fillSlots = useMemo(() => slots.filter((s) => s.kind === 'fill'), [slots])
@@ -66,6 +68,30 @@ export default function Generate() {
       setSaveMsg(`Saved to the brain as a draft (${data.chunks} chunk${data.chunks === 1 ? '' : 's'}) — find it under Documents.`)
     } catch (e: any) { setSaveErr(e?.message ?? 'save failed') }
     finally { setSaving(false) }
+  }
+
+  // Render the branded 4ward PDF in-app (Phase C1) — POST the markdown to the live render endpoint and open
+  // the returned PDF. Replaces the old "run _build_pdfs.py locally" step.
+  async function renderPdf() {
+    if (!result) return
+    setRendering(true); setRenderErr(null)
+    try {
+      const res = await fetch('/api/render-document', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ doc_type: result.doc_type, title: result.title, markdown: result.markdown }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (res.status === 422 && Array.isArray(data?.hits)) throw new Error(`Blocked: ${data.hits.map((h: any) => `${h.category} "${h.match}"`).join(', ')} — resolve before rendering.`)
+        if (res.status === 503) throw new Error('Render backend not configured yet (Cloudflare Browser Rendering env).')
+        throw new Error(data?.error || `render failed (${res.status})`)
+      }
+      const url = URL.createObjectURL(await res.blob())
+      window.open(url, '_blank', 'noopener')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e: any) { setRenderErr(e?.message ?? 'render failed') }
+    finally { setRendering(false) }
   }
 
   function download() {
@@ -157,6 +183,11 @@ export default function Generate() {
             <div className="ml-auto flex gap-2">
               <button onClick={copy} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100">{copied ? 'Copied' : 'Copy markdown'}</button>
               <button onClick={download} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100">Download .md</button>
+              <button onClick={renderPdf} disabled={rendering || result.scan_clean === false}
+                title={result.scan_clean === false ? 'Resolve the flagged content before rendering' : 'Render the branded 4ward PDF'}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 text-sm font-medium transition">
+                {rendering ? 'Rendering…' : 'Render PDF'}
+              </button>
               <button onClick={save} disabled={saving || result.scan_clean === false}
                 title={result.scan_clean === false ? 'Resolve the flagged content before saving' : 'Save this draft into the brain (searchable under Documents)'}
                 className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-3 py-1.5 text-sm font-medium transition">
@@ -166,6 +197,7 @@ export default function Generate() {
           </div>
           {saveMsg && <p className="text-sm text-emerald-400">{saveMsg}</p>}
           {saveErr && <p className="text-sm text-red-400">{saveErr}</p>}
+          {renderErr && <p className="text-sm text-red-400">{renderErr}</p>}
           {result.sources.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] uppercase tracking-wide text-slate-500">style reference:</span>
@@ -174,7 +206,7 @@ export default function Generate() {
           )}
           <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300 font-mono leading-relaxed">{result.markdown}</pre>
           <p className="text-[10px] text-slate-600">
-            Drop the .md into the deal’s <code>contracts/</code> folder and run <code>_build_pdfs.py</code> for the branded PDF.
+            <strong className="text-slate-500">Render PDF</strong> produces the branded 4ward PDF in your browser — no local tooling needed.
             Confirm every bracketed item, figure, and party detail before signature. This is a draft, not legal advice.
           </p>
         </div>

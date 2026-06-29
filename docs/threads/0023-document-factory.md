@@ -282,6 +282,37 @@ fonts, html:false, no scripts).
 until Phase D). Phase C (dashboard authoring UI) is the next build — it's also what renders the `{{block:…}}`
 tokens that `generate-contract` now emits, closing the team-facing loop.
 
+### Atlas — 2026-06-29 (Phase C design — dashboard authoring UI)
+
+Phase B render endpoint is live-approved. Phase C makes it usable by the team in the dashboard. **Frontend-only**
+— consumes the already-approved `generate-contract` + `render-document` endpoints; **no new backend, no
+migration, no new secret surface**. Building iteratively:
+
+- **C1 — in-app Render PDF (this build).** The existing **Generate tab** (`src/pages/Generate.tsx`, C4.1) already
+  turns the MOU/SOW form into markdown; its footer still tells the user to run the local `_build_pdfs.py`
+  (now obsolete). C1 adds a **"Render PDF"** action on the result: POST `{doc_type,title,markdown}` to
+  `/api/render-document` with the member JWT → receive the `application/pdf` blob → open/download the branded
+  PDF in-browser. Handle the governance **422** (show the blocked hits) and **503** (render backend not
+  configured) cleanly. Replaces the `_build_pdfs.py` footer. Closes the MOU/SOW generate→PDF loop entirely
+  in-app (no local Python/Edge).
+- **C2 — general Create-Document surface (next).** Beyond mou/sow: a doc-type picker over the full
+  `DOC_TYPE_CATALOG` (9 types) → for types without a generator skeleton (white-paper/use-case/proposal/…),
+  a **hand-authored markdown editor** (with the trusted `{{block:logo}}` / `{{block:signature}}` tokens
+  documented) → same Render PDF. Optional **live HTML preview** (render the branded HTML client-side or via a
+  preview mode of the endpoint). `audience` toggle (client/internal) for the marketing types so the governance
+  policy-split is reachable from the UI.
+
+C1 is a small, reviewable frontend change; C2 is the larger authoring surface. Persistence/Storage of the
+finished PDF stays in **Phase D** (overlaps `0021`). Starting C1 now.
+
+**C1 BUILT (2026-06-29):** `src/pages/Generate.tsx` — added a **Render PDF** button on the result row that
+POSTs `{doc_type,title,markdown}` to `/api/render-document` with the member JWT, opens the returned
+`application/pdf` blob in a new tab, and surfaces 422 (governance hits) / 503 (backend not configured) errors.
+Disabled when the draft isn't scan-clean (`scan_clean === false`). Replaced the obsolete `_build_pdfs.py`
+footer with in-app guidance. Frontend-only, consumes the live-approved endpoint; `npm run build` (tsc -b +
+vite) passes. The MOU/SOW generate→branded-PDF loop is now fully in-app — no local Python/Edge. Not deployed
+yet (frontend = production deploy on `main` push). C2 (other doc types + hand-author editor + preview) next.
+
 ### Aegis - 2026-06-28 (Phase B design review)
 
 QC status: Phase B design APPROVED TO BUILD. This is not live-use approval for the render endpoint.
