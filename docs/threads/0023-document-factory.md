@@ -518,3 +518,52 @@ Required implementation gates before apply/live approval:
 - Smoke must cover: 401/403, strict args 400, governance 422 with zero residue, valid save -> row + private PDF + audit, direct member write denied for `documents`/`document_versions`/Storage, non-member download denied, signed URL yields `%PDF`, version conflict rejected, and cleanup/no orphan objects on injected failure.
 
 With those controls, Atlas may proceed to implement Phase D as an unapplied migration + endpoints + tests. Aegis still needs implementation review before any migration apply or live persistence sign-off.
+
+### Aegis - 2026-06-29 (Phase D implementation QC #1)
+
+QC status: BLOCKED FOR APPLY. Do not apply migration `0022_document_factory_persist.sql` yet, and do not treat `/api/save-rendered-document` or `/api/document-download` as live-approved.
+
+Independent checks run:
+
+- `node functions/_lib/render-core.test.mjs` - 53/0
+- `npm run build` - pass
+- `git diff --check` - pass
+- `node --env-file=.env.local scripts/smoke-render-document.mjs` - 19/0 against production; the existing live render endpoint still passes after the shared render helper refactor
+- `npm audit --omit=dev --json` - 0 production vulnerabilities
+- Static review of `supabase/migrations/0022_document_factory_persist.sql`, `functions/_lib/render-pdf.ts`, `functions/api/render-document.ts`, `functions/api/save-rendered-document.ts`, `functions/api/document-download.ts`, `src/pages/Create.tsx`, `src/pages/Documents.tsx`, and `scripts/smoke-save-rendered.mjs`
+
+Positive findings:
+
+- The migration is unapplied and correctly keeps this behind an apply gate.
+- The bucket is private, PDF-only, and does not add broad `storage.objects` client policies.
+- `document_versions` has RLS enabled and explicit `revoke all from anon, authenticated`.
+- `save_rendered_document` is service-role-only, `security definer set search_path = ''`, validates active actor, validates `deal_id`, asserts immutable `rendered/{id}/v1.pdf`, writes v1 snapshot, and audits metadata only.
+- The save endpoint server-side rerenders via the same governed render helper before upload; it does not accept client PDF bytes or storage paths.
+- Download endpoint uses active-member auth and a 60-second signed URL.
+- Insert-only first path is acceptable for this slice; it avoids version overwrite/concurrency complexity.
+- Jesse's download-only decision is acceptable for Phase D if the UI/notes remain clear that this slice lists/downloads rendered PDFs and does not make them semantic-search/RAG indexed yet.
+
+Blocking finding:
+
++ P1 - The smoke does not prove the critical post-upload RPC-failure cleanup path. `save-rendered-document.ts` uploads the PDF before calling `save_rendered_document`, then tries to delete the object only if the RPC fails. That is the exact Storage/DB non-atomic boundary Aegis required proof for. Current smoke covers governance 422 zero DB residue before upload, and a valid save/download, but it never triggers a failure after upload and before/inside the RPC. The current negative `deal_id` test uses a non-UUID and returns 400 before render/upload, so it does not exercise cleanup.
+
+References:
+
+- `functions/api/save-rendered-document.ts` lines 66-93: upload happens first, RPC happens second, cleanup is attempted on RPC error.
+- `scripts/smoke-save-rendered.mjs` lines 75-82: the only residue test is pre-upload governance failure.
+- `scripts/smoke-save-rendered.mjs` lines 84-119: valid save/download and direct-write denial are covered, but no post-upload RPC-failure cleanup assertion exists.
+- `supabase/migrations/0022_document_factory_persist.sql` lines 103-107: a valid UUID but nonexistent `deal_id` is an available RPC-failure path after the endpoint has rendered/uploaded.
+
+Required fix before apply approval:
+
+1. Extend `scripts/smoke-save-rendered.mjs` with a valid-UUID nonexistent `deal_id` case, e.g. `00000000-0000-0000-0000-000000000000`, that reaches the RPC and fails after upload.
+2. Prove both DB and Storage residue stay unchanged. Use service-role checks before/after: document count unchanged and no new object/folder under the `rendered/` prefix. If Supabase Storage listing is folder-shaped, count/list the UUID prefixes under `rendered` before and after.
+3. Tighten cleanup observability in `save-rendered-document.ts`: after the DELETE cleanup request, check the response status. If cleanup fails, return a distinct error/detail so the smoke cannot silently pass while an orphan remains.
+4. Rerun: render-core 53/0, `npm run build`, `git diff --check`, and the post-apply `smoke-save-rendered` after migration apply.
+
+Not blocking in this slice:
+
+- No RAG chunks for rendered PDFs. This is accepted because Jesse chose download-only. Do not market Phase D as semantic-search/RAG ingestion until `document_chunks` are populated.
+- Download audit is best-effort. Acceptable for first live slice, but a future stricter audit gate can require audit failure to block signed URL issuance.
+
+Aegis decision: implementation is close, but migration `0022` is not approved to apply until the post-upload RPC-failure cleanup path is tested and observable.
