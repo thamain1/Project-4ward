@@ -118,6 +118,23 @@ async function main() {
       check('rls: member direct Storage upload denied', !!sw.error)
     }
 
+    // ---- POST-UPLOAD RPC-FAILURE CLEANUP (Aegis P1) ----
+    // valid-UUID but nonexistent deal_id passes endpoint validation + render + upload, then the RPC raises
+    // (deal not found) AFTER the object is uploaded → exercises the delete-on-failure cleanup. Prove BOTH the
+    // documents table and the rendered/ Storage prefix are unchanged (no orphan row, no orphan object).
+    {
+      const NONEXISTENT_DEAL = '00000000-0000-0000-0000-000000000000'
+      const beforeDocs = (await admin.from('documents').select('id', { count: 'exact', head: true })).count ?? 0
+      const beforeObjs = ((await admin.storage.from(BUCKET).list('rendered', { limit: 1000 })).data ?? []).length
+      const failed = await api('/api/save-rendered-document', { doc_type: 'white-paper', markdown: CLEAN_MD, audience: 'internal', deal_id: NONEXISTENT_DEAL }, mJwt)
+      check('cleanup: nonexistent deal_id -> 502 (RPC fails after upload)', failed.status === 502, `status=${failed.status}`)
+      check('cleanup: endpoint reports cleanup ok (no orphan)', failed.json?.cleanup === 'ok', `cleanup=${failed.json?.cleanup} orphan=${failed.json?.orphan}`)
+      const afterDocs = (await admin.from('documents').select('id', { count: 'exact', head: true })).count ?? 0
+      const afterObjs = ((await admin.storage.from(BUCKET).list('rendered', { limit: 1000 })).data ?? []).length
+      check('cleanup: zero DB residue after RPC failure', beforeDocs === afterDocs, `before=${beforeDocs} after=${afterDocs}`)
+      check('cleanup: zero Storage residue after RPC failure', beforeObjs === afterObjs, `before=${beforeObjs} after=${afterObjs}`)
+    }
+
     // download: bad id 400 / missing 404
     check('download: bad id -> 400', (await api('/api/document-download', { id: 'nope' }, mJwt)).status === 400)
     check('download: missing -> 404', (await api('/api/document-download', { id: '00000000-0000-0000-0000-000000000000' }, mJwt)).status === 404)

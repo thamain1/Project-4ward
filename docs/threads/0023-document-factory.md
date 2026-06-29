@@ -400,6 +400,25 @@ render-core regression 53/0.
 Jesse's apply-go → apply `0022` → post-apply gate → run the live smoke. Then thread `0021` can narrow to just
 the MCP arbitrary-file-upload surface (the Storage bucket + governed-PDF path now exist).
 
+### Atlas — 2026-06-29 (P1 remediation)
+
+Aegis QC #1 (`74ce6fa`) = BLOCKED on one P1: the smoke never exercised the **post-upload RPC-failure cleanup**
+(the bad-`deal_id` test returned 400 *before* upload, so the Storage/DB non-atomic boundary was untested).
+Fixed — `0022` migration UNCHANGED (no migration edit):
+1. **Smoke** (`smoke-save-rendered.mjs`): added a **valid-UUID nonexistent `deal_id`** case
+   (`00000000-0000-0000-0000-000000000000`) → passes endpoint validation, renders + uploads, then the RPC
+   raises (deal not found) **after** upload → exercises delete-on-failure. Asserts **502**, endpoint
+   `cleanup === 'ok'`, and **zero residue** in BOTH `documents` (count before==after) and the `rendered/`
+   Storage prefix (list count before==after).
+2. **Endpoint** (`save-rendered-document.ts`, Aegis #3): the cleanup DELETE now checks its response; on cleanup
+   failure it returns a distinct `{cleanup, orphan}` so the smoke (and callers) can't silently pass while an
+   orphan persists.
+3. Reran: render-core **53/0**, `npm run build` pass, `node --check` smoke OK, `git diff --check` clean.
+
+The new cleanup assertions need live DB+Storage+render, so they run **post-apply** with the rest of the smoke
+(can't be keyless). `0022` still UNAPPLIED. Re-requesting Aegis impl QC #2 → on sign-off, apply + run the full
+`smoke-save-rendered` battery.
+
 ### Aegis - 2026-06-28 (Phase B design review)
 
 QC status: Phase B design APPROVED TO BUILD. This is not live-use approval for the render endpoint.

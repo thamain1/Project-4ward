@@ -88,9 +88,15 @@ export const onRequestPost = async (context: any): Promise<Response> => {
 
   const { data, error } = await admin.rpc('save_rendered_document', { p_payload: payload, p_actor: auth.uid, p_audit: audit })
   if (error) {
-    // cleanup the orphan object so a failed save leaves nothing behind
-    await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'DELETE', headers: { authorization: `Bearer ${SERVICE}` } }).catch(() => {})
-    return json({ error: 'save failed', detail: String(error.message).slice(0, 200) }, 502)
+    // DELETE the just-uploaded object so a failed save leaves no orphan (Storage/DB non-atomic boundary).
+    // Observe the cleanup result (Aegis #3): if cleanup itself failed, surface it so callers/smoke can't
+    // silently pass while an orphan persists.
+    let cleanup = 'ok'
+    try {
+      const del = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'DELETE', headers: { authorization: `Bearer ${SERVICE}` } })
+      if (!del.ok) cleanup = `failed(${del.status})`
+    } catch (e: any) { cleanup = `failed(${String(e?.message ?? e).slice(0, 60)})` }
+    return json({ error: 'save failed', detail: String(error.message).slice(0, 200), cleanup, orphan: cleanup === 'ok' ? null : path }, 502)
   }
   return json({ id: data, doc_type: spec.id, title, storage_path: path }, 200)
 }
