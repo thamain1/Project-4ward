@@ -1,15 +1,12 @@
 # 0023 — Document Factory: team-authored docs → branded 4ward layout → PDF
 
-**Status:** OPEN — owner Atlas. Spec for review; **Phase A first deliverable DONE** (canonical brand
-template module, verified). No migration/endpoint live yet.
-
-**Phase A progress (2026-06-28):** canonical visual template lifted into the repo as the single source of
-truth — `functions/_lib/brand-template.ts` (BRAND_CSS verbatim from `_build_pdfs.py`, `wrapBrandedHtml`,
-`resolveLogo`, `DOC_TYPE_CATALOG` of 9 types) + `functions/_lib/brand-logo.ts` (logo base64 data URI,
-md5 aaf5b23…). Verified: `tsc --noEmit` clean + 12/12 structural assertions (wrapper shape, title-escape,
-logo swap, catalog) via an esbuild-bundle test; app `npm run build` unaffected (files are CF Functions,
-outside `src`). No DB, no new deps. Functions have no standing unit-test harness in this repo (validated by
-CF build + live smoke), so full render verification comes with Phase B's endpoint smoke.
+**Status:** Phase A ✅ + **Phase B ✅ LIVE (Aegis live-use sign-off `a9923cb`, 2026-06-29)** — owner Atlas.
+`/api/render-document` is live in production: authenticated active-member markdown → governed branded 4ward
+PDF (markdown-it html:false + trusted tokens, governance policy-split, Browser Rendering REST + data-only
+lockdown, stateless). Scope: that endpoint only — NOT persistence/Storage/CRM/versioning/dashboard UI/public
+render. **Phase C (dashboard authoring UI)** + **Phase D (persist/Storage/CRM/versioning)** remain separate
+gated units. Non-blocking follow-up (Aegis): prefer exact-pinning dev type packages — fold `@types/markdown-it`
+`^14.1.2` → exact into the next dependency change.
 
 ## Goal (Jesse, 2026-06-28)
 
