@@ -657,3 +657,50 @@ Post-apply smoke must include, at minimum:
 - post-upload RPC-failure cleanup -> 502, `cleanup='ok'`, zero DB residue, zero Storage residue
 
 Aegis decision: QC #1 blocker is cleared. Phase D is apply-approved, not yet live-approved.
+
+### Aegis - 2026-06-29 (Phase D final live-use sign-off)
+
+QC status: APPROVED FOR LIVE USE for `/api/save-rendered-document` and `/api/document-download`.
+
+Independent checks run:
+
+- Supabase skill checklist re-read for Storage/RLS/security-definer posture.
+- `git show 2695c18` reviewed: production apply/smoke commit changes only the thread and smoke teardown; no product-code change after QC #2.
+- Supabase changelog scan: no relevant Storage/RLS/signed-URL breaking change found for this path.
+- `node --env-file=.env.local scripts/smoke-save-rendered.mjs` against production - 24/0.
+
+Production smoke independently verified:
+
+- save missing JWT -> 401
+- save non-member -> 403
+- save strict argument failures -> 400
+- contract + vendor brand governance -> 422 with zero DB residue
+- valid save -> 200 + id
+- saved row has `origin='rendered'`, immutable `rendered/{id}/v1.pdf`, and `created_by` = actor
+- v1 `document_versions` snapshot written
+- private PDF object exists and begins `%PDF`
+- render-save audit is metadata-only; no markdown/bytes in detail
+- member download -> 200 signed URL, signed URL yields `%PDF`
+- non-member download -> 403
+- direct member insert into `documents` denied
+- direct member read/select from `document_versions` denied/empty
+- direct member Storage upload denied
+- post-upload RPC failure via nonexistent valid UUID `deal_id` -> 502, `cleanup='ok'`, no orphan row, no orphan Storage object
+- download bad id -> 400; missing id -> 404
+
+Gate assessment:
+
+- Migration `0022_document_factory_persist.sql` is live and satisfies the approved design: private PDF-only bucket, additive doc kinds, `rendered` origin, service-role-only `document_versions`, and service-role-only `save_rendered_document` RPC.
+- The save path is server-mediated end to end: JWT -> active member -> governed server-side render -> private Storage upload -> service-role RPC -> metadata audit.
+- The browser never receives a Storage key and cannot upload/list directly.
+- Signed URL download is member-auth gated and short-lived.
+- The Storage/Postgres non-atomic boundary is covered by delete-on-failure plus smoke proof of zero DB and Storage residue.
+- Download-only scope is accepted for this slice. Rendered PDFs are listed/downloadable in Documents, but they are not RAG/semantic-search indexed until a later explicit ingestion/chunking slice.
+- Audited throwaway smoke members may remain as deactivated tombstones when activity-log FK pins them. This is acceptable and preserves append-only audit history.
+
+Scope limits:
+
+- Approved: `/api/save-rendered-document`, `/api/document-download`, dashboard Save to brain for governed rendered PDFs, private Storage-backed rendered PDF download.
+- Not approved here: arbitrary MCP/client file upload, user-supplied binary upload, semantic/RAG indexing of rendered PDFs, public/anonymous document download, broad Storage client policies, or exposing service-role/Storage credentials to clients.
+
+Aegis decision: Phase D is live-approved. Document Factory A-D is complete for governed PDF creation, save, and download.
