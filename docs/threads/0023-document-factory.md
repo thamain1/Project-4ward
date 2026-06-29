@@ -320,7 +320,53 @@ editor → **Render PDF** (POST to the live endpoint) + **Download .md**. **clie
 for marketing types (reaches the governance policy-split from the UI). Frontend doc-type catalog
 `src/lib/docTypes.ts` mirrors the server `DOC_TYPE_CATALOG`. Errors (422 with hits / 503) surfaced. The
 endpoint is type-agnostic; smoke extended to **19/19** (added white-paper + proposal → real PDF). `npm run
-build` passes. Not deployed yet. (Live HTML preview deferred — the PDF opens in a new tab as the preview.)
+build` passes. **C2 DEPLOYED** to prod (`4a364d1`). **Phase C COMPLETE.** (Live HTML preview deferred — the
+PDF opens in a new tab as the preview.)
+
+## Phase D — persist rendered docs (Storage + CRM + versioning) — DESIGN (build held for Aegis)
+
+Persist a factory-rendered document — the **PDF binary + its markdown source** — into Mnemosyne, attachable to
+a CRM deal, versioned. This is the **binary-storage path thread `0021` wanted** (factory output); recommend
+folding 0021's Storage infra into Phase D and leaving 0021 as the future MCP-upload-of-arbitrary-files surface.
+
+**Grounding (live):** `documents` already has `storage_path` (unused), `extracted_text`, `origin`
+(`ingested|draft`), `deal_id`, `created_by`, `sensitivity`. `save_document` (0013) is insert-only, **mou/sow
+only**, no Storage. `doc_kind` enum = `sow,mou,invoice,proposal,brief,runbook,other` (missing change-order/
+white-paper/use-case/capabilities-brief/exec-briefing). **No Storage bucket exists yet.**
+
+**Proposed build (migration UNAPPLIED until QC):**
+- **Storage bucket** `documents` — **private** (not public), service-role-only; no storage key on the client.
+  Downloads via a member-auth endpoint issuing short-lived **signed URLs**.
+- **Migration:** extend `doc_kind` with the 5 missing factory types (additive); add `origin` value `'rendered'`;
+  add a **`document_versions`** table (mirror `memory_versions` from 0022: prior storage_path + markdown +
+  `version_no` + edited_by, append-only) with **explicit `revoke` from anon/authenticated** (the auto-grant
+  lesson) + service-role-only writes; `save_rendered_document(payload, actor, audit)` RPC (insert/version a
+  `documents` row, atomic audit).
+- **Endpoint** `functions/api/save-rendered-document.ts`: JWT→active member → strict args
+  `{doc_type,title,markdown,audience,deal_id?}` → governance gate (`scanByPolicy`) → **render the PDF
+  server-side** (reuse the render path — never accept client-supplied bytes) → upload to Storage (service-role)
+  → `save_rendered_document` RPC (store `storage_path` + markdown, `origin='rendered'`, optional `deal_id`,
+  `created_by=uid`, version prior on re-save) → metadata-only audit (actor = verified uid).
+- **Download** endpoint: JWT→member → verify the doc → return a short-lived Storage signed URL.
+- **Dashboard:** "Save to brain (PDF)" on Create/Generate; Documents tab lists rendered docs + Download (signed
+  URL) + deal linkage (reuse C5 `link_document_deal`).
+
+**Open questions for Aegis:**
+1. Bucket: private + service-role-only + signed-URL download via member-auth endpoint; name `documents`. OK?
+2. **Server-side re-render** (governed) vs accept client PDF bytes — recommend re-render (no arbitrary binary
+   from the browser; the bytes are always freshly governed). Confirm.
+3. `doc_kind`: **extend the enum** with the 5 factory types (additive) vs a separate `factory_type` column +
+   map to `other`. Recommend extend.
+4. Versioning: a **`document_versions`** table (parity with `memory_versions`/0022) vs versioned rows +
+   `supersedes`. Recommend the table.
+5. Audit metadata-only, actor=verified uid; governance (secrets/markers/brand-by-audience) gates before
+   render+store — sufficient?
+6. Storage RLS specifics + the explicit anon/authenticated REVOKE for `document_versions` + bucket policy.
+7. Fold thread `0021` Storage infra into Phase D (single governed bucket + upload path)?
+
+**Build is HELD** pending Aegis review of this design — Storage + a migration + a new write path crosses the
+integrity boundary, so per discipline nothing is built/applied until sign-off. On approval: migration
+(UNAPPLIED) + endpoints + keyless tests → Aegis QC → apply → post-apply gate → live smoke.
 
 ### Aegis - 2026-06-28 (Phase B design review)
 
