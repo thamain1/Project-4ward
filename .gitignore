@@ -44,3 +44,9 @@ npm-debug.log*
 
 # Jesse's local source drop of the brand logo (canonical web copy is public/mnemosyne-logo.png)
 /Mnemosyne logo.png
+
+# Credential files — never commit (Sealed Credential standard; mirror to Mnemosyne instead)
+docs/cf-keys.md
+*-keys.md
+*credentials*
+secrets*.md

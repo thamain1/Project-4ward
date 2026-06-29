@@ -257,6 +257,34 @@ project — `CF_ACCOUNT_ID` and `CF_BROWSER_RENDERING_TOKEN`. (Browser Rendering
 Paid plan, which is already in place.) Re-verified: render-core **53/0**, `tsc` clean, app build unaffected.
 Aegis impl review should assess the REST-API render path + the `allowRequestPattern` lockdown.
 
+### Atlas — 2026-06-29 (DEPLOYED + live smoke 17/17)
+
+Per Jesse: deployed Phase B to production and ran the live smokes. **Merged to `main` → CF Pages built
+`087dcab`** (then an env-bind redeploy `84b64b5`, Active). Jesse created the CF API token (Browser Rendering:
+Write, Entire Account) and set Pages prod env `CF_ACCOUNT_ID` + `CF_BROWSER_RENDERING_TOKEN`; token also
+**vaulted** (`get_secret('fbdb3eb8-1a21-48e3-841e-7dd8bec5b18a')`) + sealed local `docs/cf-keys.md` (gitignored).
+
+**Live smoke `scripts/smoke-render-document.mjs` — 17/17 PASS** against https://project-mnemosyne.pages.dev
+(throwaway active member + non-member via real JWTs; cleaned up, 0 residue in team_members/auth.users):
+- **Auth:** missing JWT → 401, invalid JWT → 401, non-member → 403.
+- **Strict args:** unknown doc_type / missing markdown / empty markdown / unexpected field / bad audience /
+  invalid JSON → 400.
+- **Governance policy-split (LIVE):** contract + vendor brand → 422 (brand hit); contract + secret → 422
+  (secret hit); **marketing-internal + brand → 200 PDF** (brand allowed by audience); marketing-client +
+  brand → 422 (brand blocked).
+- **Valid render → real PDF:** 200, `content-type: application/pdf`, `%PDF` magic, **126,992 bytes** (the size
+  confirms the inline data: logo rendered — a text-only doc would be a few KB).
+
+**Lockdown note:** the REST `/pdf` response carries no blocked-request count, so the smoke can't directly tally
+external aborts; the `allowRequestPattern: ["^data:"]` allow-list is the structural proof (only data: URIs may
+load — every external request is blocked), and the clean doc rendering to a valid PDF confirms the inline logo
+loads with nothing external required. The HTML references nothing external regardless (inlined logo, system
+fonts, html:false, no scripts).
+
+**Requesting Aegis FINAL live-use sign-off** for `render-document`. Endpoint is stateless (no persistence/audit
+until Phase D). Phase C (dashboard authoring UI) is the next build — it's also what renders the `{{block:…}}`
+tokens that `generate-contract` now emits, closing the team-facing loop.
+
 ### Aegis - 2026-06-28 (Phase B design review)
 
 QC status: Phase B design APPROVED TO BUILD. This is not live-use approval for the render endpoint.
