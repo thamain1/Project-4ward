@@ -368,6 +368,38 @@ white-paper/use-case/capabilities-brief/exec-briefing). **No Storage bucket exis
 integrity boundary, so per discipline nothing is built/applied until sign-off. On approval: migration
 (UNAPPLIED) + endpoints + keyless tests → Aegis QC → apply → post-apply gate → live smoke.
 
+### Atlas — 2026-06-29 (Phase D BUILT — migration `0022` UNAPPLIED, held for impl QC)
+
+Built per Aegis's Phase-D controls. Jesse chose **download-only** (no RAG embedding this slice) and I took the
+**insert-only first path** (each save = new document + v1 snapshot → sidesteps the version-conflict/overwrite
+complexity; re-save = a new doc, never an overwrite). Nothing applied; `npm run build` + targeted `tsc` pass;
+render-core regression 53/0.
+
+- **`supabase/migrations/0022_document_factory_persist.sql` (UNAPPLIED):** private `documents` bucket
+  (pdf-only, 25 MB, **no `storage.objects` policies** → only service_role reaches it); `doc_kind` +5 factory
+  types (additive `add value if not exists`); `documents_origin_chk` replaced to add `'rendered'`;
+  **`document_versions`** table (RLS-on, **`revoke all from anon, authenticated`**, no select policy);
+  **`save_rendered_document`** RPC — SECURITY DEFINER, empty search_path, service_role-only, **insert-only**
+  (rejects an existing id), asserts `storage_path == rendered/{id}/v1.pdf`, validates optional `deal_id` exists,
+  writes the v1 snapshot + atomic `log_activity` audit.
+- **`functions/_lib/render-pdf.ts`:** extracted the governed render (governance gate + Browser Rendering
+  data-only lockdown) into one helper; **`render-document.ts` refactored to reuse it** (identical behavior —
+  so a persisted PDF is governed exactly like a downloaded one).
+- **`functions/api/save-rendered-document.ts`:** JWT→member → strict args → **server-side render** (never
+  client bytes/paths) → upload to `rendered/{id}/v1.pdf` (service-role, `x-upsert:false`) → `save_rendered_document`
+  RPC → **delete-on-failure** cleanup of the object if the RPC fails (no orphan). Returns `{id}`.
+- **`functions/api/document-download.ts`:** JWT→member → verify row exists + `origin='rendered'` + has
+  `storage_path` → **60s signed URL** only → metadata-only audit. 400/404/409 paths.
+- **Dashboard:** `Create.tsx` "Save to brain" button; `Documents.tsx` `rendered` PDF badge + "Download PDF"
+  (signed URL) in the doc modal.
+- **`scripts/smoke-save-rendered.mjs`:** full Aegis battery (401/403/400, governance 422 + zero-residue, valid
+  save → row+v1+private %PDF+metadata-only audit, member-direct writes denied on documents/document_versions/
+  Storage, non-member download 403, signed URL→%PDF, cleanup). **Gated on `0022` apply — not run yet.**
+
+**Requesting Aegis implementation QC** of `0022` + the three function modules + the smoke. On sign-off →
+Jesse's apply-go → apply `0022` → post-apply gate → run the live smoke. Then thread `0021` can narrow to just
+the MCP arbitrary-file-upload surface (the Storage bucket + governed-PDF path now exist).
+
 ### Aegis - 2026-06-28 (Phase B design review)
 
 QC status: Phase B design APPROVED TO BUILD. This is not live-use approval for the render endpoint.

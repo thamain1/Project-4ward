@@ -14,6 +14,8 @@ export default function Create() {
   const [audience, setAudience] = useState<'client' | 'internal'>('client')
   const [rendering, setRendering] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
 
   const spec = useMemo(() => docTypeById(docTypeId)!, [docTypeId])
 
@@ -46,6 +48,26 @@ export default function Create() {
       setTimeout(() => URL.revokeObjectURL(url), 60000)
     } catch (e: any) { setErr(e?.message ?? 'render failed') }
     finally { setRendering(false) }
+  }
+
+  // Persist the rendered PDF into the brain (Phase D) — server re-renders + stores; returns the doc id.
+  async function saveToBrain() {
+    if (!markdown.trim()) { setErr('Write some markdown first.'); return }
+    setSaving(true); setErr(null); setSaveMsg(null)
+    try {
+      const res = await fetch('/api/save-rendered-document', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ doc_type: docTypeId, markdown, audience }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (res.status === 422 && Array.isArray(data?.hits)) throw new Error(`Blocked (${data.policy}): ${data.hits.map((h: any) => `${h.category} "${h.match}"`).join(', ')}`)
+        throw new Error(data?.error || `save failed (${res.status})`)
+      }
+      setSaveMsg('Saved to the brain — find it under Documents (download any time).')
+    } catch (e: any) { setErr(e?.message ?? 'save failed') }
+    finally { setSaving(false) }
   }
 
   function download() {
@@ -96,8 +118,14 @@ export default function Create() {
             className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 py-1.5 text-sm font-medium transition">
             {rendering ? 'Rendering…' : 'Render PDF'}
           </button>
+          <button onClick={saveToBrain} disabled={saving}
+            title="Render + store this document in the brain (downloadable under Documents)"
+            className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-1.5 text-sm font-medium transition">
+            {saving ? 'Saving…' : 'Save to brain'}
+          </button>
         </div>
       </div>
+      {saveMsg && <p className="text-sm text-emerald-400">{saveMsg}</p>}
 
       <textarea value={markdown} onChange={(e) => { setMarkdown(e.target.value); setDirty(true) }} spellCheck={false}
         className="w-full h-[60vh] resize-y rounded-lg bg-slate-900 border border-slate-700 px-3 py-3 text-sm font-mono leading-relaxed text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" />

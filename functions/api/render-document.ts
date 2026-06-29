@@ -25,9 +25,8 @@
 // Until both are set the endpoint returns 503 cleanly (deploy-safe before they exist).
 
 import { requireMember, parseStrict, json } from '../_lib/member-auth'
-import { renderDocumentHtml } from '../_lib/render-core'
 import { docTypeById } from '../_lib/brand-template'
-import { scanByPolicy, policyFor } from '../_lib/contract-scan'
+import { renderToPdf } from '../_lib/render-pdf'
 
 const MAX_TITLE_LEN = 300
 const MAX_MARKDOWN_LEN = 200_000   // generous outer bound for a long document
@@ -58,46 +57,15 @@ export const onRequestPost = async (context: any): Promise<Response> => {
     audience = body.audience
   }
 
-  // ---- governance gate (before render) ----
-  const policy = policyFor(spec.category, audience)
-  const scan = scanByPolicy(body.markdown, policy)
-  if (!scan.clean) return json({ error: 'prohibited content', policy, hits: scan.hits }, 422)
-
-  // ---- render to branded HTML (safe: html:false + trusted tokens) ----
-  const html = renderDocumentHtml({ title, markdown: body.markdown })
-
-  // ---- Browser Rendering REST API → PDF (locked down) ----
-  const env = context.env || {}
-  const ACCOUNT = env.CF_ACCOUNT_ID
-  const TOKEN = env.CF_BROWSER_RENDERING_TOKEN
-  if (!ACCOUNT || !TOKEN) return json({ error: 'render backend unavailable (CF Browser Rendering not configured)' }, 503)
-
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 45000)
-  try {
-    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/browser-rendering/pdf`, {
-      method: 'POST',
-      headers: { 'authorization': `Bearer ${TOKEN}`, 'content-type': 'application/json' },
-      // allow ONLY inline data: requests (the logo); everything external is blocked → no remote load possible.
-      body: JSON.stringify({ html, allowRequestPattern: ['^data:'] }),
-      signal: ctrl.signal,
-    })
-    if (!res.ok) {
-      const detail = (await res.text().catch(() => '')).slice(0, 200)
-      return json({ error: 'render failed', status: res.status, detail }, 502)
-    }
-    const pdf = await res.arrayBuffer()
-    return new Response(pdf, {
-      status: 200,
-      headers: {
-        'content-type': 'application/pdf',
-        'content-disposition': `inline; filename="${spec.id}.pdf"`,
-      },
-    })
-  } catch (e: any) {
-    return json({ error: 'render failed', detail: String(e?.message ?? e).slice(0, 200) }, 502)
-  } finally {
-    clearTimeout(timer)
-  }
+  // ---- governed render → PDF (shared helper: governance gate + Browser Rendering lockdown) ----
+  const r = await renderToPdf(context.env || {}, { docTypeId: spec.id, title, markdown: body.markdown, audience })
+  if (!r.ok) return json(r.body, r.status)
+  return new Response(r.pdf, {
+    status: 200,
+    headers: {
+      'content-type': 'application/pdf',
+      'content-disposition': `inline; filename="${spec.id}.pdf"`,
+    },
+  })
 }
 // (Only onRequestPost is exported, so CF Pages auto-returns 405 for any non-POST method.)

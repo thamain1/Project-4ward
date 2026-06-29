@@ -37,8 +37,11 @@ export default function Documents() {
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [openTitle, setOpenTitle] = useState('')
+  const [openOrigin, setOpenOrigin] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [textLoading, setTextLoading] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadErr, setDownloadErr] = useState<string | null>(null)
 
   // Q&A (C2 — RAG over contracts)
   const [question, setQuestion] = useState('')
@@ -119,10 +122,26 @@ export default function Documents() {
   }
 
   async function openDoc(d: Doc | Hit) {
-    setOpenId(d.id); setOpenTitle(d.title); setText(''); setTextLoading(true)
+    setOpenId(d.id); setOpenTitle(d.title); setOpenOrigin((d as Doc).origin ?? null); setText(''); setTextLoading(true); setDownloadErr(null)
     const { data, error } = await supabase.from('documents').select('extracted_text').eq('id', d.id).maybeSingle()
     setText(error ? `Error: ${error.message}` : ((data?.extracted_text as string) ?? '(no text)'))
     setTextLoading(false)
+  }
+
+  // Phase D: fetch a short-lived signed URL for a rendered doc's PDF and open it.
+  async function downloadPdf(id: string) {
+    setDownloading(true); setDownloadErr(null)
+    try {
+      const res = await fetch('/api/document-download', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.url) throw new Error(data?.error || `download failed (${res.status})`)
+      window.open(data.url, '_blank', 'noopener')
+    } catch (e: any) { setDownloadErr(e?.message ?? 'download failed') }
+    finally { setDownloading(false) }
   }
 
   const inSearch = hits !== null
@@ -133,6 +152,7 @@ export default function Documents() {
         <div className="flex items-center gap-2">
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${TYPE_COLORS[d.doc_type] ?? TYPE_COLORS.other}`}>{d.doc_type}</span>
           {d.origin === 'draft' && <span className="shrink-0 rounded bg-violet-500/15 text-violet-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide">draft</span>}
+          {d.origin === 'rendered' && <span className="shrink-0 rounded bg-emerald-500/15 text-emerald-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide">PDF</span>}
           {'similarity' in d && <span className="ml-auto shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-blue-300">{((d as Hit).similarity * 100).toFixed(0)}%</span>}
         </div>
         <span className="text-sm font-medium line-clamp-2">{d.title}</span>
@@ -223,8 +243,17 @@ export default function Documents() {
           <div className="w-full max-w-3xl max-h-[85vh] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="font-semibold">{openTitle}</h3>
-              <button onClick={() => setOpenId(null)} className="text-slate-500 hover:text-slate-200 text-sm">Close</button>
+              <div className="flex items-center gap-2">
+                {openOrigin === 'rendered' && (
+                  <button onClick={() => downloadPdf(openId)} disabled={downloading}
+                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 text-sm font-medium transition">
+                    {downloading ? 'Preparing…' : 'Download PDF'}
+                  </button>
+                )}
+                <button onClick={() => setOpenId(null)} className="text-slate-500 hover:text-slate-200 text-sm">Close</button>
+              </div>
             </div>
+            {downloadErr && <p className="text-sm text-red-400 mb-2">{downloadErr}</p>}
             {textLoading ? <p className="text-sm text-slate-500">Loading…</p>
               : <pre className="whitespace-pre-wrap break-words text-sm text-slate-300 font-mono leading-relaxed">{text}</pre>}
           </div>
