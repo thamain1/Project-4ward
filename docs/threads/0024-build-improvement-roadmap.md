@@ -230,16 +230,17 @@ incident.
 - **🟡 P2 — H1 Method A misses env-var-prefixed adds** (`VAR=x git add contracts/a.pdf`) since the
   segment regex anchors on `git`. Method B (staged scan at commit) still catches it, so defense in
   depth holds. Optional tighten: allow `(\w+=\S+\s+)*` prefix in the segment regex.
-- **🟡 P2 — P5-DIET half-done:** MEMORY.md dieted (18.2KB → ~13KB) but the size-lint hook (warn >16KB
-  / block >20KB on MEMORY.md writes) was not implemented. Sonnet: add it to the existing PostToolUse
-  hook chain.
+- **✅ P5-DIET verified COMPLETE (correcting Atlas's initial finding):** MEMORY.md dieted AND the size
+  lint exists — `check_memory_size` in `C:\Dev\build_registry_gen.py` (warn >16KB, block-notice >20KB),
+  which the existing PostToolUse hook runs on every MEMORY.md edit. Atlas initially looked only in
+  settings.json; withdrawn.
 - **✅ Verified good:** `npm run build` green; H1 hook 7/8 targeted cases correct (both false-positive
   cases now pass; all true-positives blocked) and the INSTALLED `~/.claude` copy is the fixed version;
   `docs/setup-mnemosyne-mcp.ps1` (live service-role key) deleted from disk and was never committed
   (gitignored — no history scrub needed); REMOTE-SETUP.md removed; README now accurate.
-- **🔴 Follow-up decision (Jesse):** the service-role key traveled to at least one remote machine
-  under the old runbook. Deleting the runbook does not un-ship it — **rotate the Supabase
-  service-role key** (then update local MCP env + CF Pages env + redeploy). Recommended before any
-  teammate/remote rollout.
+- **🔴 Follow-up (Jesse decided 2026-07-01: left un-rotated for now):** the service-role key traveled
+  to at least one remote machine under the old runbook; deleting the runbook does not un-ship it.
+  Atlas position stands: **rotate before any teammate/remote rollout** (update local MCP env + CF
+  Pages env + redeploy when done). Parking it is acceptable while access stays single-operator.
 
 **Next unit design doc:** thread `0025` (P5-TELEMETRY) — written, awaiting Aegis review.
