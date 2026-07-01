@@ -203,3 +203,43 @@ retrieval, generation, and CRM already exist, so 4ward is ~80% of the way there.
 
 Every unit: design doc → Aegis QC → Sonnet 5 build (migrations held UNAPPLIED) → apply-go → gate →
 smoke → Aegis live sign-off. Next migration number at time of writing: `0023`.
+
+---
+
+## QC — hygiene sprint (`f9083e8`, Sonnet 5) — Atlas, 2026-07-01
+
+**Verdict: PASS with required fixes.** Code quality is good; one process violation caused a live
+incident.
+
+- **🔴 P0 — deploy-before-apply ordering violation (ACTIVE at time of QC).** The four endpoints wired
+  to `checkRateLimit` fail CLOSED (500) when the `rate_take` RPC is missing. The code was pushed to
+  `main` (auto-deploys, confirmed deployment `f9083e8` in CF prod) while migration `0023` was
+  correctly held UNAPPLIED — so `/api/recall`, `/api/log-update`, `/api/generate-contract`,
+  `/api/render-document` 500 in prod until `0023` is applied. The migration SQL itself **QC-PASSES**
+  (atomic FOR UPDATE token bucket; correct refill math incl. clock-reset-on-reject; definer +
+  empty search_path; service-role-only execute; explicit revoke per this project's auto-grant
+  gotcha). **Remedy = apply `0023` immediately (Jesse apply-go needed).** Standing rule going
+  forward: code that HARD-depends on an unapplied migration must not be pushed to an auto-deploy
+  branch — either apply first (after QC) or make the dependency soft (try/catch fail-open with a
+  logged warning) until apply.
+- **🟠 P1 — Documents deal-grouping regression.** All 13 existing documents have `deal_id = NULL`
+  (verified in prod), so the new FK-based grouping renders one big "Unassigned" bucket where the old
+  title heuristic showed per-deal groups. Fix (Sonnet): fall back to the title-prefix heuristic when
+  `deals?.title` is null (`d.deals?.title ?? title.split(' — ')[0]`), AND backfill links for the 13
+  docs via `link_document_deal` where a matching deal exists.
+- **🟡 P2 — H1 Method A misses env-var-prefixed adds** (`VAR=x git add contracts/a.pdf`) since the
+  segment regex anchors on `git`. Method B (staged scan at commit) still catches it, so defense in
+  depth holds. Optional tighten: allow `(\w+=\S+\s+)*` prefix in the segment regex.
+- **🟡 P2 — P5-DIET half-done:** MEMORY.md dieted (18.2KB → ~13KB) but the size-lint hook (warn >16KB
+  / block >20KB on MEMORY.md writes) was not implemented. Sonnet: add it to the existing PostToolUse
+  hook chain.
+- **✅ Verified good:** `npm run build` green; H1 hook 7/8 targeted cases correct (both false-positive
+  cases now pass; all true-positives blocked) and the INSTALLED `~/.claude` copy is the fixed version;
+  `docs/setup-mnemosyne-mcp.ps1` (live service-role key) deleted from disk and was never committed
+  (gitignored — no history scrub needed); REMOTE-SETUP.md removed; README now accurate.
+- **🔴 Follow-up decision (Jesse):** the service-role key traveled to at least one remote machine
+  under the old runbook. Deleting the runbook does not un-ship it — **rotate the Supabase
+  service-role key** (then update local MCP env + CF Pages env + redeploy). Recommended before any
+  teammate/remote rollout.
+
+**Next unit design doc:** thread `0025` (P5-TELEMETRY) — written, awaiting Aegis review.
