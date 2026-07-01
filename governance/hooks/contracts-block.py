@@ -64,7 +64,9 @@ def find_hits_in_git_add(command: str):
     """
     hits = []
     for segment in re.split(r"&&|\|\||;|\|", command):
-        m = re.match(r"\s*git\s+add\b(.*)", segment)
+        # (\w+=\S+\s+)* tolerates env-var-prefixed invocations like `VAR=x git add contracts/a.pdf`
+        # (thread 0024 QC P2, optional — Method B/staged-scan already catches these as defense in depth).
+        m = re.match(r"\s*(?:\w+=\S+\s+)*git\s+add\b(.*)", segment)
         if not m:
             continue
         try:

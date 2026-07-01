@@ -26,7 +26,7 @@
 
 import { requireMember, parseStrict, json } from '../_lib/member-auth'
 import { docTypeById } from '../_lib/brand-template'
-import { renderToPdf } from '../_lib/render-pdf'
+import { scanForRender, renderScannedToPdf } from '../_lib/render-pdf'
 import { checkRateLimit } from '../_lib/rate-limit'
 
 const MAX_TITLE_LEN = 300
@@ -38,9 +38,6 @@ export const onRequestPost = async (context: any): Promise<Response> => {
   // ---- auth (fail closed) ----
   const auth = await requireMember(context)
   if (!auth.ok) return auth.res
-
-  const rate = await checkRateLimit(auth.admin, auth.uid, 'render_document', RATE_LIMIT, RATE_WINDOW_S)
-  if (!rate.ok) return rate.res
 
   // ---- strict args ----
   const parsed = await parseStrict(context, ['doc_type', 'title', 'markdown', 'audience'])
@@ -63,8 +60,17 @@ export const onRequestPost = async (context: any): Promise<Response> => {
     audience = body.audience
   }
 
-  // ---- governed render → PDF (shared helper: governance gate + Browser Rendering lockdown) ----
-  const r = await renderToPdf(context.env || {}, { docTypeId: spec.id, title, markdown: body.markdown, audience })
+  // ---- governance gate (cheap, no network) — a policy-rejected request must not spend a rate-limit
+  // token (thread 0024 QC P2-ORDER) ----
+  const scan = scanForRender({ docTypeId: spec.id, markdown: body.markdown, audience })
+  if (!scan.ok) return json(scan.body, scan.status)
+
+  // ---- rate limit — immediately before the expensive Browser Rendering call, after every cheap check ----
+  const rate = await checkRateLimit(auth.admin, auth.uid, 'render_document', RATE_LIMIT, RATE_WINDOW_S)
+  if (!rate.ok) return rate.res
+
+  // ---- expensive: Cloudflare Browser Rendering lockdown ----
+  const r = await renderScannedToPdf(context.env || {}, { title, markdown: body.markdown, policy: scan.policy })
   if (!r.ok) return json(r.body, r.status)
   return new Response(r.pdf, {
     status: 200,

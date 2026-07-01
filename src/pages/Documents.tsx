@@ -22,8 +22,10 @@ const TYPE_COLORS: Record<string, string> = {
   other: 'bg-slate-700 text-slate-300',
 }
 const GRID = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3'
-// deal = the linked deals.title via documents.deal_id FK (0015_crm_writes_and_linkage.sql)
-const dealOf = (d: Doc) => d.deals?.title?.trim() || 'Unassigned'
+// deal = the linked deals.title via documents.deal_id FK (0015_crm_writes_and_linkage.sql); falls back
+// to the legacy "<Deal> — …" title-prefix heuristic for documents not yet linked to a deal (thread
+// 0024 QC P1 — the CRM has zero deals seeded today, so every document is unlinked until one exists).
+const dealOf = (d: Doc) => d.deals?.title?.trim() || (d.title.split(' — ')[0] || 'Other').trim()
 
 export default function Documents() {
   const { session } = useAuth()
