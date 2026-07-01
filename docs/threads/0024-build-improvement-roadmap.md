@@ -7,6 +7,9 @@
   reviews before apply/deploy, as always. One unit at a time, checkpoint before proceeding.
 - **Source:** full-repo analysis (docs/vision, MCP + API surface, UI + schema) run by Atlas 2026-07-01,
   HEAD `60f1eba`, migrations 0001–0022 all applied.
+- **Updated 2026-07-01 (same day):** added **Pillar 5 — Memory + token-economy** (assessment of the
+  two-tier memory + TOKEN-GOVERNANCE system, units P5-*) per Jesse; UI/perf quick wins renumbered to
+  Pillar 6; build sequence updated to fold P5 units in.
 
 ---
 
@@ -104,7 +107,67 @@ retrieval, generation, and CRM already exist, so 4ward is ~80% of the way there.
    admin-password fallback still live in that repo's code (not this repo, tracked in memory).
 5. **README ~3 phases stale** ("not yet scaffolded") — five-minute fix, matters for onboarding.
 
-## Pillar 5 — UI/UX + performance quick wins
+## Pillar 5 — Memory + token-economy (assessment added 2026-07-01 per Jesse)
+
+### Assessment of what's in place
+
+**Sound and worth keeping:**
+- **Two-tier local memory** (lean `MEMORY.md` index auto-loaded + topic files read on demand +
+  `/switch` orientation) — cache-aware and correct in shape.
+- **TOKEN-GOVERNANCE-SYSTEM.md v1.6** is intellectually honest: §3.1 corrects the original thesis
+  (the always-loaded prefix is prompt-cached at ~10% cost, so trimming it saves ~⅕ of raw size);
+  §3.2 identifies **subagent search discipline as the single biggest real token lever** (file dumps
+  die in the subagent; only conclusions return); §8 warns against over-engineering the framework.
+- **Metadata-first MCP design**: `recall` never returns bodies; `fetch` pulls one body on demand;
+  k clamped 1..50; chunk fan-out capped at 12. The token-cheap shape is already built in.
+
+**Findings (measured 2026-07-01):**
+1. **`MEMORY.md` is 18.2KB — already over its own 17KB target** and loaded into EVERY session for
+   EVERY project, mostly with parked-project detail irrelevant to the active one.
+2. **Only 2 of 6 spec'd hooks exist** (`governance/hooks/contracts-block.py`, `package-14day.py`).
+   H3 destructive-deny, H4 SessionStart injection, H5 write-back nudge, H6 permissions allowlist are
+   spec-only. Per §8's own advice this may be fine — but the doc reads as if more is enforced than is.
+3. **H1 has a known false-positive bug**: it scans raw git command text, so commit MESSAGES containing
+   `MOU/SOW`-like tokens get blocked on clean commits.
+4. **Zero token telemetry.** §3.1 explicitly says recall-on-demand's net effect is "unproven, pending
+   He1/He3 measurement" — those measurements were never run. Nothing records what agents actually
+   spend, so every optimization claim is a guess.
+5. **`fetch` is all-or-nothing** — pulling a 20KB body to answer a one-line question is the current
+   worst-case token pattern for agents.
+
+### Improvement units
+
+1. **P5-TELEMETRY — measure before optimizing (build FIRST).** Log token usage per agent session/tool
+   call into `activity_log` (action `agent.usage`: model, session kind, input/output/cached tokens) or
+   a small `usage_log` table; dashboard tile with per-agent/per-week rollups. Finally answers the open
+   He1/He3 question and makes every later P6 claim testable.
+2. **P5-DIET — MEMORY.md diet + size lint.** Compress parked-project paragraphs to one-liners (detail
+   already lives in topic files); add a size check to the existing PostToolUse hook on MEMORY.md edits
+   (warn >16KB, block >20KB). Savings are modest (cached prefix) — justify on correctness/truncation
+   risk, per §3.1.
+3. **P5-H1FIX — fix the contracts-block false positive**: scan staged paths + diffed file basenames
+   (Method B, already correct), not the free-text commit message. Rides in the hygiene sprint.
+4. **P5-FETCH-SCOPE — section-scoped fetch.** Add optional `heading` / `max_chars` params to `fetch`
+   (and the future remote MCP equivalent) so agents pull the section they need, not whole bodies.
+   Pairs with P1-HYBRID: better first-hit precision = fewer recall→fetch rounds.
+5. **P5-PACK — budget-capped context packs.** The P1-BRIEF `brief` tool must be server-assembled and
+   HARD-capped (~4K tokens): RESUME block + last N activity + open items, dense machine-first wording
+   (§16.2 style), compact JSON. One cheap call replaces every agent's recall-fan-out orientation dance.
+6. **P5-AGENT-DIET — deployed-agent token rules** (bakes into P1-HOSTED-MCP + the standard AGENTS.md
+   template for all repos):
+   - **Scoped tool exposure**: machine accounts see only their scoped tools → fewer schemas in context.
+   - **Payload caps on every MCP tool response** (bytes, not vibes); metadata-first everywhere.
+   - **Search-via-subagent discipline** codified in the AGENTS.md template (the §3.2 lever, made standard).
+   - **Cache-aligned harness prompts**: stable system-prompt prefixes; volatile content (brief pack)
+     appended last; poll/loop intervals under the 5-min cache TTL where applicable.
+   - **Model tiering**: Sonnet 5 for builds, Haiku-class for librarian/classification crons, Gemini
+     Flash for the data plane. This is the first practical slice of the Phase-5 "4ward Router" vision —
+     a routing config table now, the gateway later.
+7. **P5-HANDOFF — session handoff standard.** Agents end long sessions by writing ONE dense handoff
+   memory (§16.2 compression, verified round-trip) instead of relying on transcript compaction; next
+   session boots from `brief` + handoff. Cheap convention, large repeat-session savings.
+
+## Pillar 6 — UI/UX + performance quick wins
 
 - **URL routing** — tabs are `useState` in `App.tsx`; no deep-linking to a deal/memory/doc.
 - **Pagination + Supabase Realtime** — Memories pulls the ENTIRE table in one fetch (will fall over as
@@ -122,14 +185,21 @@ retrieval, generation, and CRM already exist, so 4ward is ~80% of the way there.
 
 ## Recommended sequence (cash-aware)
 
-1. **Hygiene sprint** (days): REMOTE-SETUP kill, rate-limit RPC, README refresh, deal-grouping fix.
-   Cheap; items 1–2 are hard prerequisites for everything below.
-2. **P1-HOSTED-MCP + P1-BRIEF** — the multiplier. Makes Mnemosyne *the company's* brain instead of
-   Jesse's brain with a dashboard; directly attacks the SPOF mission.
-3. **P2-BRIDGE + P2-CRM + P1-HYBRID** — lead-gen foundation, immediately useful to the team.
-4. **P2-LOOP v1** — research agent → client brief → tailored collateral → stale-deal digest. First item
+1. **Hygiene sprint** (days): REMOTE-SETUP kill, rate-limit RPC, README refresh, deal-grouping fix,
+   **P5-H1FIX** (contracts-block false positive), **P5-DIET** (MEMORY.md diet + size lint).
+   Cheap; REMOTE-SETUP + rate limiting are hard prerequisites for everything below.
+2. **P5-TELEMETRY** — small unit, built BEFORE the optimizations it will judge. Every later token
+   claim (and the governance doc's open He1/He3 question) becomes measurable.
+3. **P1-HOSTED-MCP + P1-BRIEF** — the multiplier. Makes Mnemosyne *the company's* brain instead of
+   Jesse's brain with a dashboard; directly attacks the SPOF mission. **P5-PACK** (brief budget cap)
+   and **P5-AGENT-DIET** (scoped tools, payload caps, cache-aligned prompts, model tiering) are baked
+   into this unit's design, not separate builds.
+4. **P2-BRIDGE + P2-CRM + P1-HYBRID** (+ **P5-FETCH-SCOPE** rides with hybrid) — lead-gen foundation,
+   immediately useful to the team.
+5. **P2-LOOP v1** — research agent → client brief → tailored collateral → stale-deal digest. First item
    that plausibly *makes* money rather than saving time.
-5. **P3 client portal / productization** — after the tenancy decision.
+6. **P3 client portal / productization** — after the tenancy decision. **P5-HANDOFF** is a convention,
+   not a build — adopt it in the AGENTS.md template whenever that file is next touched.
 
 Every unit: design doc → Aegis QC → Sonnet 5 build (migrations held UNAPPLIED) → apply-go → gate →
 smoke → Aegis live sign-off. Next migration number at time of writing: `0023`.
